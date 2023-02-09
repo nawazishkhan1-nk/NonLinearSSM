@@ -8,7 +8,7 @@ import torch
 import torch.optim as optim
 
 from data import fetch_dataloaders
-from NormalizingFlowsLib.maf import (MAF, RealNVP)
+from NormalizingFlowModels.maf import (MAF, RealNVP)
 
 def train(model, dataloader, optimizer, epoch, args):
 
