@@ -1,0 +1,34 @@
+{
+	"gpu_device": "cuda:0",
+    "num_particles": 256,
+	"num_samples": 28,
+
+    "dimension": 3,
+
+
+    "batch_size":2,
+    "num_initial_iterations": 3000,
+
+    "working_dir": "/home/sci/nawazish.khan/non-linear-ssm-experiments/Supershapes/",
+    "project_name": "Supershapes_project_5_lobes_new",
+    "burn_in_dir": "burn_in_model_particles",
+
+    "model": "realnvp",
+    "n_blocks": 3,
+    "n_components": 1,
+    "hidden_size": 16,
+    "n_hidden": 1,
+    "activation_fn": "relu",
+    "input_order": "random",
+    "no_batch_norm": true,
+    "conditional": false,
+    "n_epochs": 20,
+    "start_epoch": 0,
+    "lr": 1e-2,
+    "log_interval": 1000,
+    "results_file": "results.txt",
+    "seed": 11,
+
+    "train_test_split": 0.90
+
+  }
