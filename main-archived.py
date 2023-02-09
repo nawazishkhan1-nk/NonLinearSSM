@@ -4,7 +4,6 @@ from utils import DictMap
 import json
 import torch
 import os
-import shapeworks as sw
 
 # Shape Model Particles Directory
 param_fn = sys.argv[1]
@@ -34,21 +33,3 @@ inv_net.initialize_model()
 print('Model Initialized, Now Training')
 inv_net.train_model_from_scratch()
 inv_net.serialize_model()
-
-# Set up Shapeworks Optimizer Object
-global sw_opt
-sw_opt = sw.Optimize()
-# Create SW Project File with Optimization Params and burn_in_particles as landmarks
-sw_opt.LoadXlsxProjectFile(project_file_path)
-print('Project Loaded')
-
-
-# Define Callbacks
-def train_model_callback():
-    if sw_opt.GetOptimizing():
-        print('Train Model callback in Python 0....')
-        # Make sure prior is updated properly before training for new iteration
-        inv_net.initialize_model()
-        inv_net.initialize_particles(init_particles_dir=particles_dir)
-        inv_net.train_invertible_network_from_last_checkpoint()
-        print('Train Model callback in Python 1....')
