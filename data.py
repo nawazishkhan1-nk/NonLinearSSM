@@ -1,9 +1,11 @@
+from turtle import shape
 import numpy as np
 
 import torch
 import torchvision.transforms as T
 from torch.utils.data import DataLoader, TensorDataset
 import glob
+from sklearn.preprocessing import MinMaxScaler
 
 # --------------------
 # Helper functions
@@ -26,14 +28,25 @@ def load_shape_matrix(particle_dir, particle_system='warped'):
     N = len(point_files)
     M = np.loadtxt(point_files[0]).shape[0]
     d = np.loadtxt(point_files[0]).shape[1]
+    np.random.seed(11)
+    indices = np.random.randint(low=0, high=M, size=16)
     print(f'----- Loading particles data from {particle_dir.split("/")[-1]} | N = {N}, M = {M}, d={d} -------')
-    data = np.zeros([N, M, d])
+    M_new = 16
+    data = np.zeros([N, M_new, d])
     for i in range(len(point_files)):
         nm = point_files[i]
-        data[i, ...] = np.loadtxt(nm)[:, :3]
-    n_dims = (M, d)
-    return data, n_dims
-# --------------------
+        data[i, ...] = np.loadtxt(nm)[indices, :3]
+        # print(data[i].shape)
+    n_dims = (M_new, d)
+    scaler = MinMaxScaler(feature_range=(-1, 1))
+    data = np.reshape(data, (N, d*M_new))
+    data_ = scaler.fit_transform(data)
+    # assert data_.shape == data.shape
+    data_ = np.reshape(data_, (N, M_new, d))
+    print(np.min(data_), np.max(data_))
+
+    return data_, n_dims
+# -------------------=
 # Dataloaders
 # --------------------
 
@@ -70,5 +83,6 @@ def fetch_dataloaders(particle_dir, batch_size, device, seed=1, train_test_split
 
     train_loader = DataLoader(train_dataset, batch_size, shuffle=True, **kwargs)
     test_loader = DataLoader(test_dataset, batch_size, shuffle=False, **kwargs)
+    print('Dataloader constructed')
 
-    return train_loader, test_loader
+    return train_loader, test_loader, dataset

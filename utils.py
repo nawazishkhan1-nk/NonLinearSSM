@@ -117,3 +117,7 @@ class DictMap(dict):
     def __delitem__(self, key):
         super(DictMap, self).__delitem__(key)
         del self.__dict__[key]
+
+
+def print_log(msg):
+    print (f'----------- {msg} -----------')

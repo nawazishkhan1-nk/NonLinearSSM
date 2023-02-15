@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributions as D
+from torch.distributions import MultivariateNormal as MVN
 import torchvision.transforms as T
 from torchvision.utils import save_image
 
@@ -200,8 +201,8 @@ class LinearMaskedCoupling(nn.Module):
         mx = x * self.mask
 
         # run through model
-        s = self.s_net(mx)
-        t = self.t_net(mx)
+        s = self.s_net(mx)*(1-self.mask)
+        t = self.t_net(mx)*(1-self.mask)
         u = mx + (1 - self.mask) * (x - t) * torch.exp(-s)  # cf RealNVP eq 8 where u corresponds to x (here we're modeling u)
 
         log_abs_det_jacobian = - (1 - self.mask) * s  # log det du/dx; cf RealNVP 8 and 6; note, sum over input_size done at model log_prob
@@ -214,8 +215,8 @@ class LinearMaskedCoupling(nn.Module):
         mu = u * self.mask
 
         # run through model
-        s = self.s_net(mu)
-        t = self.t_net(mu)
+        s = self.s_net(mu)*(1-self.mask)
+        t = self.t_net(mu)*(1-self.mask)
         x = mu + (1 - self.mask) * (u * s.exp() + t)  # cf RealNVP eq 7
 
         log_abs_det_jacobian = (1 - self.mask) * s  # log det dx/du
@@ -223,6 +224,7 @@ class LinearMaskedCoupling(nn.Module):
         return x, log_abs_det_jacobian
 
  
+# TODO: Change running mean type here
 class BatchNorm(nn.Module):
     """ RealNVP BatchNorm layer """
     def __init__(self, input_size, momentum=0.9, eps=1e-5)->None:
@@ -354,7 +356,7 @@ class MADE(nn.Module):
 
     @property
     def base_dist(self):
-        return MultivariateNormal(self.base_dist_mean, self.base_dist_var)
+        return MVN(self.base_dist_mean, self.base_dist_var)
 
     def forward(self, x):
         # MAF eq 4 -- return mean and log std
@@ -407,7 +409,7 @@ class MAF(nn.Module):
 
     @property
     def base_dist(self):
-        return MultivariateNormal(self.base_dist_mean, self.base_dist_var)
+        return MVN(self.base_dist_mean, self.base_dist_var)
 
     def forward(self, x):
         return self.net(x)
@@ -438,8 +440,11 @@ class RealNVP(nn.Module):
         base_dist_mean = mean if mean is not None else torch.zeros(input_size)
         base_dist_var = cov if cov is not None else torch.eye(input_size)
         # print(f'INPUT SIZE IS  {input_size}')
-        self.register_buffer('base_dist_mean', base_dist_mean)
-        self.register_buffer('base_dist_var', base_dist_var)
+        # self.register_buffer('base_dist_mean', base_dist_mean)
+        # self.register_buffer('base_dist_var', base_dist_var)
+
+        self.base_dist_mean = base_dist_mean
+        self.base_dist_var = base_dist_var
 
         # construct model
         modules = []
@@ -456,7 +461,7 @@ class RealNVP(nn.Module):
 
     @property
     def base_dist(self):
-        return MultivariateNormal(self.base_dist_mean, self.base_dist_var)
+        return MVN(self.base_dist_mean, self.base_dist_var)
 
     def forward(self, x):
         return self.net(x)
@@ -477,3 +482,18 @@ class RealNVP(nn.Module):
     @torch.jit.export
     def base_dist_log_prob(self, x:torch.Tensor) -> torch.Tensor:
         return self.base_dist.log_prob(x)
+    
+    @torch.jit.export
+    def set_base_dist_mean(self, x:torch.Tensor) -> torch.Tensor:
+        self.base_dist_mean = x
+        return x
+    
+    @torch.jit.export
+    def set_base_dist_var(self, x:torch.Tensor) -> torch.Tensor:
+        S = torch.square(torch.linalg.svdvals(x))
+        dM = x.size()[1]
+        indices_retained = int(0.98 * dM)
+        S[indices_retained:] = 1
+        cov = torch.diag(S)
+        self.base_dist_var = cov
+        return cov
