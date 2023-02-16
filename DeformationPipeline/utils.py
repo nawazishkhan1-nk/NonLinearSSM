@@ -99,7 +99,7 @@ def create_burn_in_sw_project(input_dir, input_type, burn_in_dir, dataset_name, 
 
 pancreas_seg_dir = '/home/sci/nawazish.khan/non-linear-ssm-experiments/Pancreas/segmentations-centered/'
 pancreas_meshes_dir = '/home/sci/nawazish.khan/non-linear-ssm-experiments/Pancreas/meshes/'
-burn_in_dir = '/home/sci/nawazish.khan/non-linear-ssm-experiments/Pancreas/burn_in_model_subset1//'
+burn_in_dir = '/home/sci/nawazish.khan/non-linear-ssm-experiments/Pancreas/burn_in_model_subset1/'
 
 supershapes_mesh_dir = '/home/sci/nawazish.khan/non-linear-ssm-experiments/Supershapes/'
 supershapes_particles_dir = '/home/sci/nawazish.khan/non-linear-ssm-experiments/Supershapes/burn_in_model_particles/'
