@@ -7,6 +7,7 @@ import pandas as pd
 import sys
 import shapeworks as sw
 import os
+import ants
 
 INPUT_DIR = '/home/sci/nawazish.khan/non-linear-ssm-experiments/'
 global DATASET
@@ -34,7 +35,7 @@ def find_medoid_mesh(mesh_dir_path, input_file_type='vtk'):
 
 def deform_and_warp(input_dir, medoid_shape_fn, medoid_shape_particle_fn, input_file_type='nrrd', d=3, M=256):
     seg_files = sorted(glob.glob(f'{input_dir}/*.{input_file_type}'))
-    seg_files.reverse()
+    # seg_files.reverse()
     print(f'Loaded {len(seg_files)} ...')
     burn_in_dir = f'{INPUT_DIR}/{DATASET}/burn_in_model/'
 
@@ -43,8 +44,8 @@ def deform_and_warp(input_dir, medoid_shape_fn, medoid_shape_particle_fn, input_
     medoid_particles = np.loadtxt(medoid_particles_file)
     assert medoid_particles.shape[0] == M and medoid_particles.shape[1] == d
     medoid_df = pd.DataFrame(medoid_particles, columns=['x', 'y', 'z'])
-
     fi = ants.image_read(medoid_seg_file)
+    print('a')
     for idx, seg_file in enumerate(seg_files):
         print(f'******* File {len(seg_files) - idx} out of {len(seg_files)} ******')
         mi = ants.image_read(seg_file)
@@ -60,8 +61,30 @@ def deform_and_warp(input_dir, medoid_shape_fn, medoid_shape_particle_fn, input_
         ptsw = ants.apply_transforms_to_points(3, medoid_df, mytx['fwdtransforms'])
         np.savetxt(f'{burn_in_dir}/{shape_name}_warped.particles', ptsw)
 
+def convert_to_images(input_dir, medoid_shape_fn, input_file_type='ply'):
+    mesh_files = sorted(glob.glob(f'{input_dir}/*.{input_file_type}'))
+    print(f'Loaded {len(mesh_files)} ...')
+    burn_in_dir = f'{INPUT_DIR}/{DATASET}/burn_in_model/'
+    medoid_seg_file = f'{burn_in_dir}/{medoid_shape_fn}.{input_file_type}'
+    mesh_files.append(medoid_seg_file)
+    i = 0
+    for mesh_file in mesh_files:
+        shape_name = mesh_file.split('/')[-1].split('.')[0]
+        img = sw.Mesh(mesh_file).toImage()
+        img.binarize().closeHoles()
+        img.antialias(20)
+        img.write(f'{os.path.dirname(mesh_file)}/{shape_name}.nrrd', compressed=False)
+        print(i)
+        i += 1
+
+     
 if __name__ == "__main__":
     DATASET = sys.argv[1]
     if DATASET == 'supershapes':
-        input_dir = f'{INPUT_DIR}/{DATASET}/train/vtk_files/'
-        find_medoid_mesh(mesh_dir_path=input_dir)
+        input_dir = f'{INPUT_DIR}/{DATASET}/train-val/'
+        # find_medoid_mesh(mesh_dir_path=input_dir)
+        convert_to_images(input_dir, medoid_shape_fn='medoid_mesh_id0071_ss4_medoid_mesh')
+        deform_and_warp(input_dir=input_dir,
+                        medoid_shape_fn='medoid_mesh_id0071_ss4_medoid_mesh',
+                        medoid_shape_particle_fn='medoid_mesh_id0071_ss4_medoid_mesh',
+                        input_file_type='nrrd', M=1024)

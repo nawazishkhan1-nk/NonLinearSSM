@@ -217,6 +217,9 @@ class LinearMaskedCoupling(nn.Module):
         # run through model
         s = self.s_net(mu)*(1-self.mask)
         t = self.t_net(mu)*(1-self.mask)
+
+        # s = self.s_net(mu)
+        # t = self.t_net(mu)
         x = mu + (1 - self.mask) * (u * s.exp() + t)  # cf RealNVP eq 7
 
         log_abs_det_jacobian = (1 - self.mask) * s  # log det dx/du
@@ -287,23 +290,25 @@ class ModuleInterface(torch.nn.Module):
     def inverse(self, input: torch.Tensor) -> torch.Tensor: # `input` has a same name in Sequential forward
         pass   
 
-class FlowSequential(nn.Module):
+class FlowSequential(nn.Sequential):
     """ Container for layers of a normalizing flow """
-    def __init__(self, args:torch.nn.ModuleList, n_layers: int):
-        super().__init__()
-        self.layers: torch.nn.ModuleList = args
-        self.n_layers = n_layers
+    # def __init__(self, args:torch.nn.ModuleList, n_layers: int):
+    #     super().__init__()
+    #     self.layers: torch.nn.ModuleList = args
+    #     self.n_layers = n_layers
 
     def forward(self, x):
         sum_log_abs_det_jacobians = 0
-        for module_layer in self.layers:
+        # for module_layer in self.layers:
+        for module_layer in self:
             x, log_abs_det_jacobian = module_layer(x)
             sum_log_abs_det_jacobians = sum_log_abs_det_jacobians + log_abs_det_jacobian
         return x, sum_log_abs_det_jacobians
 
     def inverse(self, u):
         sum_log_abs_det_jacobians = 0
-        for module_layer in self.layers[::-1]:
+        # for module_layer in self.layers[::-1]:
+        for module_layer in reversed(self):
             # layer: LinearMaskedCoupling = self.layers[i]
             u, log_abs_det_jacobian = module_layer.inverse(u)
             sum_log_abs_det_jacobians = sum_log_abs_det_jacobians + log_abs_det_jacobian
@@ -357,6 +362,8 @@ class MADE(nn.Module):
     @property
     def base_dist(self):
         return MVN(self.base_dist_mean, self.base_dist_var)
+        # return D.Normal(self.base_dist_mean, self.base_dist_var)
+
 
     def forward(self, x):
         # MAF eq 4 -- return mean and log std
@@ -379,11 +386,11 @@ class MADE(nn.Module):
 
     def log_prob(self, x):
         u, log_abs_det_jacobian = self.forward(x)
-        base_dist_val = self.base_dist.log_prob(u)
-        req_t = torch.zeros_like(log_abs_det_jacobian)
-        req_t[:, 1] = base_dist_val
-        # return torch.sum(self.base_dist.log_prob(u) + sum_log_abs_det_jacobians, dim=1)
-        return torch.sum(req_t + log_abs_det_jacobian, dim=1)
+        # base_dist_val = self.base_dist.log_prob(u)
+        # req_t = torch.zeros_like(log_abs_det_jacobian)
+        # req_t[:, 1] = base_dist_val
+        return torch.sum(self.base_dist.log_prob(u) + log_abs_det_jacobian, dim=1)
+        # return torch.sum(req_t + log_abs_det_jacobian, dim=1)
 
 
 class MAF(nn.Module):
@@ -403,13 +410,15 @@ class MAF(nn.Module):
             self.input_degrees = modules[-1].input_degrees.flip(0)
             modules += batch_norm * [BatchNorm(input_size)]
 
-        # self.net = FlowSequential(*modules)
-        list_modules = nn.ModuleList(modules)
-        self.net = FlowSequential(list_modules)
+        self.net = FlowSequential(*modules)
+        # list_modules = nn.ModuleList(modules)
+        # self.net = FlowSequential(list_modules, len(modules))
 
     @property
     def base_dist(self):
         return MVN(self.base_dist_mean, self.base_dist_var)
+        # return D.Normal(self.base_dist_mean, self.base_dist_var)
+
 
     def forward(self, x):
         return self.net(x)
@@ -424,8 +433,8 @@ class MAF(nn.Module):
         base_dist_val = self.base_dist.log_prob(u)
         req_t = torch.zeros_like(sum_log_abs_det_jacobians)
         req_t[:, 1] = base_dist_val
-        # return torch.sum(self.base_dist.log_prob(u) + sum_log_abs_det_jacobians, dim=1)
-        return torch.sum(req_t + sum_log_abs_det_jacobians, dim=1)
+        # return torch.sum(self.base_dist.log_prob(u) + sum_log_abs_det_jacobians, dim=1), sum_log_abs_det_jacobians.sum(dim=1)
+        return torch.sum(req_t + sum_log_abs_det_jacobians, dim=1), sum_log_abs_det_jacobians.sum(dim=1)
 
     @torch.jit.export
     def base_dist_log_prob(self, x:torch.Tensor) -> torch.Tensor:
@@ -454,14 +463,16 @@ class RealNVP(nn.Module):
             mask = 1 - mask
             modules += batch_norm * [BatchNorm(input_size)]
 
-        # self.net = FlowSequential(*modules)
-        list_modules = nn.ModuleList(modules)
-        self.net = FlowSequential(list_modules, len(modules))
+        self.net = FlowSequential(*modules)
+        # list_modules = nn.ModuleList(modules)
+        # self.net = FlowSequential(list_modules, len(modules))
 
 
     @property
     def base_dist(self):
         return MVN(self.base_dist_mean, self.base_dist_var)
+        # return D.Normal(self.base_dist_mean, self.base_dist_var)
+
 
     def forward(self, x):
         return self.net(x)
@@ -474,10 +485,11 @@ class RealNVP(nn.Module):
     def log_prob(self, x):
         u, sum_log_abs_det_jacobians = self.forward(x)
         base_dist_val = self.base_dist.log_prob(u)
+        # print(f'max of base dist is {base_dist_val.max().item()}')
         req_t = torch.zeros_like(sum_log_abs_det_jacobians)
         req_t[:, 1] = base_dist_val
-        # return torch.sum(self.base_dist.log_prob(u) + sum_log_abs_det_jacobians, dim=1)
-        return torch.sum(req_t + sum_log_abs_det_jacobians, dim=1)
+        # return torch.sum(self.base_dist.log_prob(u) + sum_log_abs_det_jacobians, dim=1), sum_log_abs_det_jacobians.sum(dim=1)
+        return torch.sum(req_t + sum_log_abs_det_jacobians, dim=1), sum_log_abs_det_jacobians.sum(dim=1)
     
     @torch.jit.export
     def base_dist_log_prob(self, x:torch.Tensor) -> torch.Tensor:

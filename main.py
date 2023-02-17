@@ -22,7 +22,7 @@ torch.manual_seed(params.seed)
 
 # Set Directories and their paths
 WORKING_DIR = params.working_dir
-MODEL_SAVE_DIR = f'{params.working_dir}/pytorch-models-{params.experiment_name}/'
+MODEL_SAVE_DIR = f'{params.working_dir}/pytorch-models-{params.experiment_name}-{param_fn.split("/")[-1].split(".")[0]}/'
 params.output_dir = MODEL_SAVE_DIR
 if not os.path.isdir(params.output_dir):
     os.makedirs(params.output_dir)
@@ -42,10 +42,14 @@ inv_net = InvertibleNetwork(params=params)
 
 
 inv_net.initialize_particles(init_particles_dir=burn_in_particles_dir, particle_system='warped')
-inv_net.update_prior_dist(dM = d*16, update_type='identity_cov')
+inv_net.update_prior_dist(update_type=params.prior_update_type)
 inv_net.initialize_model()
 inv_net.train_model_from_scratch()
-serialized_model_path = inv_net.serialize_model()
+
+
+
+
+# serialized_model_path = inv_net.serialize_model()
 
 # serialized_model_path = inv_net.serialize_model_object_only()
 

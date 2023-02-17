@@ -20,7 +20,7 @@ def one_hot(x, label_size):
     out[torch.arange(len(x)), x] = 1
     return out
 
-def load_shape_matrix(particle_dir, particle_system='warped'):
+def load_shape_matrix(particle_dir, particle_system='warped', args=None):
     point_files = sorted(glob.glob(f'{particle_dir}/*_{particle_system}.particles'))
     if len(point_files)==0:
         point_files = sorted(glob.glob(f'{particle_dir}/*_world.particles'))
@@ -28,34 +28,45 @@ def load_shape_matrix(particle_dir, particle_system='warped'):
     N = len(point_files)
     M = np.loadtxt(point_files[0]).shape[0]
     d = np.loadtxt(point_files[0]).shape[1]
-    np.random.seed(11)
-    indices = np.random.randint(low=0, high=M, size=16)
+    indices = None
+    if (args.num_particles_subset is not None and args.num_particles_subset >= 0):
+        np.random.seed(args.seed)
+        indices = np.random.randint(low=0, high=M, size=args.num_particles_subset)
+        M = args.num_particles_subset
+
     print(f'----- Loading particles data from {particle_dir.split("/")[-1]} | N = {N}, M = {M}, d={d} -------')
-    M_new = 16
-    data = np.zeros([N, M_new, d])
+    data = np.zeros([N, M, d])
     for i in range(len(point_files)):
         nm = point_files[i]
-        data[i, ...] = np.loadtxt(nm)[indices, :3]
-        # print(data[i].shape)
-    n_dims = (M_new, d)
-    scaler = MinMaxScaler(feature_range=(-1, 1))
-    data = np.reshape(data, (N, d*M_new))
-    data_ = scaler.fit_transform(data)
-    # assert data_.shape == data.shape
-    data_ = np.reshape(data_, (N, M_new, d))
-    print(np.min(data_), np.max(data_))
+        if indices is not None:
+            data[i, ...] = np.loadtxt(nm)[indices, :3]
+        else:
+            data[i, ...] = np.loadtxt(nm)[..., :3]
 
-    return data_, n_dims
+        # print(data[i].shape)
+    n_dims = (M, d)
+    if args.scale_particles_input:
+        scaler = MinMaxScaler(feature_range=(-1, 1))
+        data = np.reshape(data, (N, d*M))
+        data = scaler.fit_transform(data)
+        # assert data_.shape == data.shape
+        data = np.reshape(data, (N, M, d))
+        print(f'Input particles scaled, min = {np.min(data)} | max = {np.max(data)}')
+        args.scaler_ob = scaler
+
+    return data, n_dims
+
 # -------------------=
 # Dataloaders
 # --------------------
 
-def fetch_dataloaders(particle_dir, batch_size, device, seed=1, train_test_split=0.90, particle_system='world'):
+def fetch_dataloaders(particle_dir, particle_system='world', args=None):
 
     # grab datasets
-    dataset, n_dims = load_shape_matrix(particle_dir, particle_system)
-    np.random.seed(seed)
-    train_len = int(train_test_split * dataset.shape[0])
+    device = args.device
+    dataset, n_dims = load_shape_matrix(particle_dir, particle_system, args)
+    np.random.seed(args.seed)
+    train_len = int(args.train_test_split * dataset.shape[0])
     shuffled_indices = np.random.permutation(dataset.shape[0])
     train_data = dataset[shuffled_indices[:train_len]]
     test_data = dataset[shuffled_indices[train_len:]]
@@ -81,8 +92,8 @@ def fetch_dataloaders(particle_dir, batch_size, device, seed=1, train_test_split
     # construct dataloaders
     kwargs = {'num_workers': 1, 'pin_memory': True} if device.type is 'cuda' else {}
 
-    train_loader = DataLoader(train_dataset, batch_size, shuffle=True, **kwargs)
-    test_loader = DataLoader(test_dataset, batch_size, shuffle=False, **kwargs)
+    train_loader = DataLoader(train_dataset, args.batch_size, shuffle=True, **kwargs)
+    test_loader = DataLoader(test_dataset, args.batch_size, shuffle=False, **kwargs)
     print('Dataloader constructed')
 
     return train_loader, test_loader, dataset
