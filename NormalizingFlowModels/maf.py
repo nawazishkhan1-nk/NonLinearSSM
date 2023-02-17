@@ -473,17 +473,18 @@ class RealNVP(nn.Module):
         return MVN(self.base_dist_mean, self.base_dist_var)
         # return D.Normal(self.base_dist_mean, self.base_dist_var)
 
-
-    def forward(self, x):
+    def inverse(self, x):
+    # def forward(self, x):
         return self.net(x)
 
     @torch.jit.export
-    def inverse(self, u):
+    # def inverse(self, u):
+    def forward(self, u):
         return self.net.inverse(u)  
 
     @torch.jit.export
     def log_prob(self, x):
-        u, sum_log_abs_det_jacobians = self.forward(x)
+        u, sum_log_abs_det_jacobians = self.inverse(x) # z to z0
         base_dist_val = self.base_dist.log_prob(u)
         # print(f'max of base dist is {base_dist_val.max().item()}')
         req_t = torch.zeros_like(sum_log_abs_det_jacobians)

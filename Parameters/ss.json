@@ -11,7 +11,7 @@
     "working_dir": "/home/sci/nawazish.khan/non-linear-ssm-experiments/super-shapes/",
     "project_name": "Supershapes_project_5_lobes_new",
     "burn_in_dir": "burn_in_model_particles",
-    "experiment_name": "EXPT-New-3_sub-rnvp-rmfp_cov-mvn",
+    "experiment_name": "EXPT-NewModel-1-",
     "model": "realnvp",
     "n_blocks": 5,
     "hidden_size": 32,

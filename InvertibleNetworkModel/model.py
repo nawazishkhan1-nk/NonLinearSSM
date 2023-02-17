@@ -110,7 +110,7 @@ def train(model, dataloader, optimizer, epoch, args):
                 # plot projected z
                 ax = fig.add_subplot(1, 2, 2, projection='3d')
                 ax.set_title("Projected Z Space")
-                _, z_new = project(model, z0_ten, 'inverse')
+                _, z_new = project(model, z0_ten, 'forward') # z0 to z
                 M = int(z_new.shape[0]//3)
                 z_new = z_new.reshape((-1, 3))
                 ax.scatter3D(z_new[:, 0], z_new[: , 1], z_new[:, 2], color = "blue")
@@ -130,7 +130,7 @@ def train(model, dataloader, optimizer, epoch, args):
                 # plot z0 
                 ax = fig.add_subplot(1, 3, 2, projection='3d')
                 ax.set_title("Z_0 Space -->")
-                z0_ten, z0 = project(model, x[1, :],  'forward')
+                z0_ten, z0 = project(model, x[1, :],  'inverse')
                 M = int(z0.shape[0]//3)
                 z0 = z0.reshape((M, 3))
                 ax.scatter3D(z0[:, 0], z0[: , 1], z0[:, 2], color = "green")
@@ -138,7 +138,7 @@ def train(model, dataloader, optimizer, epoch, args):
                 # plot projected z
                 ax = fig.add_subplot(1, 3, 3, projection='3d')
                 ax.set_title("Projected Z Space")
-                _, z_new = project(model, z0_ten, 'inverse')
+                _, z_new = project(model, z0_ten, 'forward') # z0 to z
                 M = int(z_new.shape[0]//3)
                 z_new = z_new.reshape((M, 3))
                 ax.scatter3D(z_new[:, 0], z_new[: , 1], z_new[:, 2], color = "blue")
