@@ -196,7 +196,7 @@ class LinearMaskedCoupling(nn.Module):
         for i in range(len(self.t_net)):
             if not isinstance(self.t_net[i], nn.Linear): self.t_net[i] = nn.ReLU()
 
-    def forward(self, x:torch.Tensor)-> Tuple[torch.Tensor, torch.Tensor]:
+    def inverse(self, x:torch.Tensor)-> Tuple[torch.Tensor, torch.Tensor]:
         # apply mask
         mx = x * self.mask
 
@@ -210,7 +210,7 @@ class LinearMaskedCoupling(nn.Module):
         return u, log_abs_det_jacobian
 
     @torch.jit.export
-    def inverse(self, u:torch.Tensor)-> Tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, u:torch.Tensor)-> Tuple[torch.Tensor, torch.Tensor]:
         # apply mask
         mu = u * self.mask
 
@@ -473,13 +473,11 @@ class RealNVP(nn.Module):
         return MVN(self.base_dist_mean, self.base_dist_var)
         # return D.Normal(self.base_dist_mean, self.base_dist_var)
 
-    def inverse(self, x):
-    # def forward(self, x):
+    def forward(self, x):
         return self.net(x)
 
     @torch.jit.export
-    # def inverse(self, u):
-    def forward(self, u):
+    def inverse(self, u):
         return self.net.inverse(u)  
 
     @torch.jit.export
