@@ -10,6 +10,21 @@ from sklearn.decomposition import PCA
 import seaborn as sns
 COLOR_LIST = list(mcolors.CSS4_COLORS.values())
 
+def compute_stats(shape_matrix):
+    """
+        Input shape matrix of size N X dM
+    """
+    N = shape_matrix.shape[0]
+    x = shape_matrix.reshape((N, -1))
+    x = torch.from_numpy(x).float()
+    mean = x.mean(0)
+    mean = mean.squeeze()
+    x_centered = x - mean[None, :].expand(N, -1)
+    cov = (x_centered.T @ x_centered)
+    cov = cov / (N-1)
+    eigvals = torch.real(torch.linalg.eigvalsh(cov))
+    return mean, eigvals
+
 @torch.no_grad()
 def project(model, x, direction='forward'):
     model.eval()

@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.optim as optim
 from data import fetch_dataloaders
-from utils import print_log, plot_projections, plot_kde_plots, plot_loss_curves, sample_and_plot_reconstructions
+from utils import print_log, plot_projections, plot_kde_plots, plot_loss_curves, sample_and_plot_reconstructions, compute_stats
 from NormalizingFlowModels.realnvp import (RealNVP)
 
 def train(model, dataloader, optimizer, epoch, args):
@@ -111,76 +111,39 @@ class InvertibleNetwork:
             cov = 0.001 * torch.eye(dM)
             
         elif update_type == 'diagonal_cov':
-            N = self.shape_matrix.shape[0]
-            x = self.shape_matrix.reshape((N, -1))
-            x = torch.from_numpy(x).float()
-            mean = x.mean(0)
-            mean = mean.squeeze()
-            x_centered = x - mean[None, :].expand(N, -1)
-            cov = (x_centered.T @ x_centered)
-            cov = cov / (N-1)
-            eigvals = torch.real(torch.linalg.eigvals(cov))
+            _, eigvals = compute_stats(self.shape_matrix)
             mean_eig_val = eigvals.mean(0)
             cov_final = mean_eig_val * torch.eye(dM)
             cov = torch.abs(torch.sqrt(torch.square(cov_final)))
 
         elif update_type == 'zero_mean_isotropic':
-            N = self.shape_matrix.shape[0]
-            x = self.shape_matrix.reshape((N, -1))
-            x = torch.from_numpy(x).float()
-            mean = x.mean(0)
-            mean = mean.squeeze() * 0
-            x_centered = x - mean[None, :].expand(N, -1)
-            cov = (x_centered.T @ x_centered)
-            cov = cov / (N-1)
-            eigvals = torch.real(torch.linalg.eigvals(cov))
+            mean, eigvals = compute_stats(self.shape_matrix)
             mean_eig_val = eigvals.mean(0)
             cov_final = mean_eig_val * torch.eye(dM)
+            mean = 0 * mean
             cov = torch.abs(torch.sqrt(torch.square(cov_final)))
         
         elif update_type == 'zero_mean_anisotropic':
-            N = self.shape_matrix.shape[0]
-            x = self.shape_matrix.reshape((N, -1))
-            x = torch.from_numpy(x).float()
-            mean = x.mean(0)
-            mean = mean.squeeze()
-            x_centered = x - mean[None, :].expand(N, -1)
-            cov = (x_centered.T @ x_centered)
-            cov = cov / (N-1)
-            eigvals = torch.real(torch.linalg.eigvals(cov))
-            indices_retained = int(self.params.modes_retained * dM)
-            eigvals[indices_retained:] = eigvals.mean(0)
-            cov = torch.abs(torch.sqrt(torch.square(torch.diag(eigvals))))
-            mean = torch.zeros(dM)
+            mean, eigvals = compute_stats(self.shape_matrix)
+            mean = 0 * mean
+            indices_retained  = (torch.cumsum(eigvals)/torch.sum(eigvals)) > self.params.modes_retained
+            indices_excluded = (torch.cumsum(eigvals)/torch.sum(eigvals)) <= self.params.modes_retained
+            remaining_var = ((indices_excluded * eigvals).sum())/indices_excluded.sum()
+            eigvals_in = indices_retained * eigvals
+            eigvals_out = indices_excluded * remaining_var
+            eigvals_all = eigvals_in + eigvals_out
+            cov = torch.abs(torch.sqrt(torch.square(torch.diag(eigvals_all))))
 
         elif update_type == 'non_zero_mean_anisotropic':
-            N = self.shape_matrix.shape[0]
-            x = self.shape_matrix.reshape((N, -1))
-            x = torch.from_numpy(x).float()
-            mean = x.mean(0)
-            mean = mean.squeeze()
-            x_centered = x - mean[None, :].expand(N, -1)
-            cov = (x_centered.T @ x_centered)
-            cov = cov / (N-1)
-            eigvals = torch.real(torch.linalg.eigvals(cov))
-            indices_retained = int(self.params.modes_retained * dM)
-            eigvals[indices_retained:] = eigvals.mean(0)
-            cov = torch.abs(torch.sqrt(torch.square(torch.diag(eigvals))))
-
-        elif update_type == 'non_zero_mean_anisotropic_updated':
-            N = self.shape_matrix.shape[0]
-            x = self.shape_matrix.reshape((N, -1))
-            x = torch.from_numpy(x).float()
-            mean = x.mean(0)
-            mean = mean.squeeze()
-            x_centered = x - mean[None, :].expand(N, -1)
-            cov = (x_centered.T @ x_centered)
-            cov = cov / (N-1)
-            eigvals = torch.real(torch.linalg.eigvals(cov))
-            indices_retained = int(self.params.modes_retained * dM)
-            eigvals[indices_retained:] = eigvals[indices_retained:].mean(0)
-            cov = torch.abs(torch.sqrt(torch.square(torch.diag(eigvals))))
-
+            mean, eigvals = compute_stats(self.shape_matrix)
+            indices_retained  = (torch.cumsum(eigvals)/torch.sum(eigvals)) > self.params.modes_retained
+            indices_excluded = (torch.cumsum(eigvals)/torch.sum(eigvals)) <= self.params.modes_retained
+            remaining_var = ((indices_excluded * eigvals).sum())/indices_excluded.sum()
+            eigvals_in = indices_retained * eigvals
+            eigvals_out = indices_excluded * remaining_var
+            eigvals_all = eigvals_in + eigvals_out
+            cov = torch.abs(torch.sqrt(torch.square(torch.diag(eigvals_all))))
+            
         cov = torch.diag(cov)
         self.prior_mean = mean.to(self.params.device)
         self.prior_cov = cov.to(self.params.device)
