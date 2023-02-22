@@ -21,7 +21,6 @@ class LinearMaskedCoupling(nn.Module):
             s_net += [nn.Tanh(), nn.Linear(hidden_size, hidden_size)]
         s_net += [nn.Tanh(), nn.Linear(hidden_size, input_size)]
         self.s_net = nn.Sequential(*s_net)
-
         # translation function
         self.t_net = copy.deepcopy(self.s_net)
         # replace Tanh with ReLU's per MAF paper
