@@ -97,7 +97,7 @@ class InvertibleNetwork:
     def get_shape_matrix(self):
         return self.shape_matrix
 
-    def update_prior_dist(self, update_type='identity_cov'):
+    def initialize_prior_dist(self, update_type='identity_cov'):
         dM = self.params.input_size
         if (self.params.num_particles_subset is not None and self.params.num_particles_subset >= 0):
             dM = self.params.num_particles_subset * 3
@@ -143,7 +143,7 @@ class InvertibleNetwork:
             eigvals_out = indices_excluded * remaining_var
             eigvals_all = eigvals_in + eigvals_out
             cov = torch.abs(torch.sqrt(torch.square(torch.diag(eigvals_all))))
-            
+
         cov = torch.diag(cov)
         self.prior_mean = mean.to(self.params.device)
         self.prior_cov = cov.to(self.params.device)
@@ -163,7 +163,7 @@ class InvertibleNetwork:
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=args.lr, weight_decay=1e-6)
         print_log('Model Initialized')
     
-    def train_model_from_scratch(self):
+    def train_model(self):
         train_and_evaluate(self.model, self.train_dataloader, self.test_dataloader, self.optimizer, self.params)
         if self.params.plot_densities:
             plot_kde_plots(self.shape_matrix, self.model, self.params)
@@ -185,7 +185,7 @@ class InvertibleNetwork:
         print(f'******************** Serialized Module saved ************************')
         return serialized_model_path
 
-    def train_model_from_last_checkpoint(self):
+    def train_model_continue(self):
         print_log('Loading Last best model')
         checkpoint_path = f'{self.params.output_dir}/best_model_checkpoint.pt'
         if os.path.exists(checkpoint_path):
