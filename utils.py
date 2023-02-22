@@ -4,6 +4,7 @@ import matplotlib
 import torch
 import os
 matplotlib.use('Agg')
+matplotlib.rcParams["text.usetex"]
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from sklearn.decomposition import PCA
@@ -38,7 +39,7 @@ def project(model, x, direction='forward'):
 @torch.no_grad()
 def sample_from_base(model, n_samples=1):
     model.eval()
-    z0 = model.base_dist.sample((n_samples, ))
+    z0 = model.prior.sample((n_samples, ))
     z0_np = z0.detach().cpu().numpy()
     return z0, z0_np
         
@@ -48,8 +49,8 @@ def sample_and_plot_reconstructions(model, args, N):
         os.makedirs(out_dir)
     z0_ten, z0 = sample_from_base(model, N)
     z0_ten = z0_ten.to(args.device)
-    print(f'z0_ten is in {z0_ten.get_device()}')
-    _, z_new = project(model, z0_ten, 'forward') # z0 to z
+    print(f'z0_ten shape is  {z0_ten.shape}')
+    _, z_new = project(model, z0_ten, 'inverse') # z0 to z
 
     for i in range(N):
         print(f'Sampling {i} sample .... ')
@@ -106,7 +107,7 @@ def plot_projections(x, model, epoch, args):
     # plot z0 
     ax = fig.add_subplot(1, 3, 2, projection='3d')
     ax.set_title("Z_0 Space -->")
-    z0_ten, z0 = project(model, x[0, :],  'inverse')
+    z0_ten, z0 = project(model, x[0, :],  'forward')
     M = int(z0.shape[0]//3)
     z0 = z0.reshape((M, 3))
     ax.scatter3D(z0[:, 0], z0[: , 1], z0[:, 2], color = "green")
@@ -114,7 +115,7 @@ def plot_projections(x, model, epoch, args):
     # plot projected z
     ax = fig.add_subplot(1, 3, 3, projection='3d')
     ax.set_title("Projected Z Space")
-    _, z_new = project(model, z0_ten, 'forward') # z0 to z
+    _, z_new = project(model, z0_ten, 'inverse') # z0 to z
     M = int(z_new.shape[0]//3)
     z_new = z_new.reshape((M, 3))
     ax.scatter3D(z_new[:, 0], z_new[: , 1], z_new[:, 2], color = "blue")
@@ -141,9 +142,10 @@ def plot_kde_plots(shape_matrix, model, args):
     z = shape_matrix.reshape((N, -1))
 
     z_data = torch.from_numpy(z).float()
-    z_0_data, _ = model.inverse(z_data.to(args.device))
-    z0_prior_data = model.base_dist.sample((N,))
-    z_new_data, _ = model(z0_prior_data.to(args.device))
+    z_0_data, _ = model(z_data.to(args.device))
+
+    z0_prior_data = model.prior.sample((N,))
+    z_new_data, _ = model.inverse(z0_prior_data.to(args.device))
 
     z0 = z_0_data.detach().cpu().numpy()
     z0_prior = z0_prior_data.detach().cpu().numpy()

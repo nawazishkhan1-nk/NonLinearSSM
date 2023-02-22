@@ -110,43 +110,30 @@ class InvertibleNetwork:
             mean = torch.zeros(dM)
             cov = 0.001 * torch.eye(dM)
             
-        elif update_type == 'diagonal_cov':
-            _, eigvals = compute_stats(self.shape_matrix)
-            mean_eig_val = eigvals.mean(0)
-            cov_final = mean_eig_val * torch.eye(dM)
-            cov = torch.abs(torch.sqrt(torch.square(cov_final)))
-
-        elif update_type == 'zero_mean_isotropic':
+        elif update_type == 'zero_mean_isotropic' or update_type =='non_zero_mean_isotropic':
             mean, eigvals = compute_stats(self.shape_matrix)
             mean_eig_val = eigvals.mean(0)
             cov_final = mean_eig_val * torch.eye(dM)
-            mean = 0 * mean
             cov = torch.abs(torch.sqrt(torch.square(cov_final)))
+            if update_type == "zero_mean_isotropic":
+                mean = 0 * mean
         
-        elif update_type == 'zero_mean_anisotropic':
+        elif update_type == 'zero_mean_anisotropic' or update_type == 'non_zero_mean_anisotropic':
             mean, eigvals = compute_stats(self.shape_matrix)
-            mean = 0 * mean
-            indices_retained  = (torch.cumsum(eigvals)/torch.sum(eigvals)) > self.params.modes_retained
-            indices_excluded = (torch.cumsum(eigvals)/torch.sum(eigvals)) <= self.params.modes_retained
+            indices_retained  = (torch.cumsum(eigvals, dim=0)/eigvals.sum(0)) > self.params.modes_retained
+            indices_excluded = (torch.cumsum(eigvals, dim=0)/eigvals.sum(0)) <= self.params.modes_retained
             remaining_var = ((indices_excluded * eigvals).sum())/indices_excluded.sum()
             eigvals_in = indices_retained * eigvals
             eigvals_out = indices_excluded * remaining_var
             eigvals_all = eigvals_in + eigvals_out
             cov = torch.abs(torch.sqrt(torch.square(torch.diag(eigvals_all))))
+            if update_type == "zero_mean_anisotropic":
+                mean = 0 * mean
 
-        elif update_type == 'non_zero_mean_anisotropic':
-            mean, eigvals = compute_stats(self.shape_matrix)
-            indices_retained  = (torch.cumsum(eigvals)/torch.sum(eigvals)) > self.params.modes_retained
-            indices_excluded = (torch.cumsum(eigvals)/torch.sum(eigvals)) <= self.params.modes_retained
-            remaining_var = ((indices_excluded * eigvals).sum())/indices_excluded.sum()
-            eigvals_in = indices_retained * eigvals
-            eigvals_out = indices_excluded * remaining_var
-            eigvals_all = eigvals_in + eigvals_out
-            cov = torch.abs(torch.sqrt(torch.square(torch.diag(eigvals_all))))
 
-        cov = torch.diag(cov)
         self.prior_mean = mean.to(self.params.device)
         self.prior_cov = cov.to(self.params.device)
+        self.prior_cov = torch.diag(self.prior_cov)
         self.params.mean = self.prior_mean
         self.params.cov = self.prior_cov
         np.save(f'{self.params.output_dir}/cov.npy', self.prior_cov.detach().cpu().numpy())
@@ -165,8 +152,6 @@ class InvertibleNetwork:
     
     def train_model(self):
         train_and_evaluate(self.model, self.train_dataloader, self.test_dataloader, self.optimizer, self.params)
-        if self.params.plot_densities:
-            plot_kde_plots(self.shape_matrix, self.model, self.params)
 
     def serialize_model(self):
         print('*********** Serializing to TorchScript Module *****************')
@@ -200,6 +185,8 @@ class InvertibleNetwork:
         print_log("Model initialized")
 
     def generate(self, N=100):
+        if self.params.plot_densities:
+            plot_kde_plots(self.shape_matrix, self.model, self.params)
         checkpoint_path = f'{self.params.output_dir}/best_model_checkpoint.pt'
         if os.path.exists(checkpoint_path):
             state = torch.load(checkpoint_path, map_location=self.params.device)

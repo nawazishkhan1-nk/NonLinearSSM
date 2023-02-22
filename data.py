@@ -1,6 +1,4 @@
-from turtle import shape
 import numpy as np
-
 import torch
 import torchvision.transforms as T
 from torch.utils.data import DataLoader, TensorDataset
@@ -94,6 +92,6 @@ def fetch_dataloaders(particle_dir, particle_system='world', args=None):
 
     train_loader = DataLoader(train_dataset, args.batch_size, shuffle=True, **kwargs)
     test_loader = DataLoader(test_dataset, args.batch_size, shuffle=False, **kwargs)
-    print('Dataloader constructed')
+    # print('Dataloader constructed')
 
     return train_loader, test_loader, dataset
