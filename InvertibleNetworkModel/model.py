@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.optim as optim
 from data import fetch_dataloaders
-from utils import print_log
+from utils import print_log, plot_projections, plot_kde_plots, plot_loss_curves, sample_and_plot_reconstructions
 from NormalizingFlowModels.realnvp import (RealNVP)
 
 def train(model, dataloader, optimizer, epoch, args):
@@ -22,9 +22,8 @@ def train(model, dataloader, optimizer, epoch, args):
         x = x.view(x.shape[0], -1).float().to(args.device)
 
         # loss = - model.log_prob(x, y if args.cond_label_size else None).mean(0)
-        loss, log_det = model.log_prob(x)
-        loss = -loss.mean(0)
-        # print(f'shape of log det is {log_det.shape}')
+        log_prob, log_det = model.log_prob(x)
+        loss = -log_prob.mean(0)
         log_det = log_det.mean(0)
 
         optimizer.zero_grad()
@@ -35,7 +34,7 @@ def train(model, dataloader, optimizer, epoch, args):
 
         if epoch % args.log_interval == 0:
             if args.plot_projections:
-                plot_projections(x, self.model, epoch, args)
+                plot_projections(x, model, epoch, args)
             print('epoch {:3d} / {}, step {:4d} / {}; loss {:.4f}'.format(
                     epoch, args.start_epoch + args.n_epochs, i, len(dataloader), loss.item()))
     return np.mean(np.array(loss_ar)), np.mean(np.array(log_det_ar))
