@@ -13,7 +13,6 @@ def train(model, dataloader, optimizer, epoch, args):
     log_det_ar = []
     for i, data in enumerate(dataloader):
         model.train()
-        # check if labeled dataset
         if len(data) == 1:
             x, y = data[0], None
         else:
@@ -21,7 +20,6 @@ def train(model, dataloader, optimizer, epoch, args):
             y = y.to(args.device)
         x = x.view(x.shape[0], -1).float().to(args.device)
 
-        # loss = - model.log_prob(x, y if args.cond_label_size else None).mean(0)
         log_prob, log_det = model.log_prob(x)
         loss = -log_prob.mean(0)
         log_det = log_det.mean(0)
@@ -29,10 +27,11 @@ def train(model, dataloader, optimizer, epoch, args):
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+
         loss_ar.append(loss.item())
         log_det_ar.append(log_det.item())
 
-        if epoch % args.log_interval == 0:
+        if i % args.log_interval == 0:
             if args.plot_projections:
                 plot_projections(x, model, epoch, args)
             print('epoch {:3d} / {}, step {:4d} / {}; loss {:.4f}'.format(
@@ -65,23 +64,17 @@ def train_and_evaluate(model, train_loader, test_loader, optimizer, args, traini
         eval_logprob, _ = evaluate(model, test_loader, i, args)
         loss_ar.append(loss_val)
         log_det_ar.append(log_det_val)
-
-        # save training checkpoint
         torch.save({'epoch': i,
                     'model_state': model.state_dict(),
                     'optimizer_state': optimizer.state_dict()},
                     os.path.join(args.output_dir, 'model_checkpoint.pt'))
-        # save model only
         torch.save(model.state_dict(), os.path.join(args.output_dir, 'model_state.pt'))
-
-        # save best state
         if eval_logprob > best_eval_logprob:
             best_eval_logprob = eval_logprob
             torch.save({'epoch': i,
                         'model_state': model.state_dict(),
                         'optimizer_state': optimizer.state_dict()},
                         os.path.join(args.output_dir, 'best_model_checkpoint.pt'))
-        
     if args.plot_loss_log:
         plot_loss_curves(loss_ar, log_det_ar, args)
 
@@ -188,17 +181,7 @@ class InvertibleNetwork:
             eigvals[indices_retained:] = eigvals[indices_retained:].mean(0)
             cov = torch.abs(torch.sqrt(torch.square(torch.diag(eigvals))))
 
-        elif update_type == 'full_cov':
-            N = self.shape_matrix.shape[0]
-            x = self.shape_matrix.reshape((N, -1))
-            x = torch.from_numpy(x).float()
-            mean = x.mean(0)
-            mean = mean.squeeze()
-            x_centered = x - mean[None, :].expand(N, -1)
-            cov = (x_centered.T @ x_centered)
-            cov = cov / (N-1)
-
-
+        cov = torch.diag(cov)
         self.prior_mean = mean.to(self.params.device)
         self.prior_cov = cov.to(self.params.device)
         self.params.mean = self.prior_mean
@@ -253,7 +236,7 @@ class InvertibleNetwork:
         train_and_evaluate(self.model, self.train_dataloader, self.test_dataloader, self.optimizer, self.params, training_from_last_checkpoint=True)
         print_log("Model initialized")
 
-    def sample_and_reconstruct_models(self, N=100):
+    def generate(self, N=100):
         checkpoint_path = f'{self.params.output_dir}/best_model_checkpoint.pt'
         if os.path.exists(checkpoint_path):
             state = torch.load(checkpoint_path, map_location=self.params.device)
