@@ -99,6 +99,7 @@ class InvertibleNetwork:
         self.params.input_size = self.train_dataloader.dataset.input_size #dM
         self.params.input_dims = self.train_dataloader.dataset.input_dims
         self.params.cond_label_size = None
+        print_log(f'Input Size = {self.params.input_size}')
 
     def get_shape_matrix(self):
         return self.shape_matrix
