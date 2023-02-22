@@ -11,17 +11,17 @@
     "working_dir": "/home/sci/nawazish.khan/non-linear-ssm-experiments/super-shapes/",
     "project_name": "Supershapes_project_5_lobes_new",
     "burn_in_dir": "burn_in_model_particles",
-    "experiment_name": "EXPT-NewModel-2",
+    "experiment_name": "EXPT-NewModel-5",
     "model": "realnvp",
     "n_blocks": 5,
-    "hidden_size": 32,
+    "hidden_size": 128,
     "n_hidden": 1,
 
     "activation_fn": "tanh",
     "input_order": "sequential",
     "no_batch_norm": true,
     "conditional": false,
-    "n_epochs": 50,
+    "n_epochs": 100,
     "start_epoch": 0,
     "lr": 1e-3,
     "log_interval": 5,
@@ -37,9 +37,10 @@
     "plot_correspondences": false,
     "num_particles_subset": null,
     "scale_particles_input": false,
-    "modes_retained": 1.0,
+    "modes_retained": 0.50,
     "prior_update_type": "retained_modes_from_prior",
     "plot_loss_log": true,
-    "plot_sampling": true
+    "plot_sampling": true,
+    "plot_test_samples": true
 
   }

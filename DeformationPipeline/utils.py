@@ -71,31 +71,7 @@ def generate_supershapes_data(num_samples, out_dir):
     ss_generator = ShapeCohortGen.SupershapesCohortGenerator(out_dir)
     meshFiles = ss_generator.generate(num_samples, randomize_center=False, randomize_rotation=False, m=-1)
 
-def create_burn_in_sw_project(input_dir, input_type, burn_in_dir, dataset_name, project_name='project'):
-    input_files = sorted(glob.glob(f'{input_dir}/*.{input_type}'))
-    print(f'Loaded {len(input_files)} Files ...')
-    subjects = []
-    for i in range(len(input_files)):
-        subject = sw.Subject()
-        subject.set_number_of_domains(1)
-        subject.set_original_filenames([input_files[i]])
-        subject.set_groomed_filenames([input_files[i]])
-        rel_particle_file = glob.glob(f'{burn_in_dir}/{input_files[i].split("/")[-1].split(f".{input_type}")[0]}*.particles')
-        if len(rel_particle_file) >= 0:
-            if os.path.exists(rel_particle_file[0]):
-                subject.set_landmarks_filenames([rel_particle_file[0]])
-                subjects.append(subject)
 
-    project = sw.Project()
-    project.set_subjects(subjects)
-    parameters = sw.Parameters()
-    # Add param dictionary to spreadsheet
-    for key in parameter_dictionary:
-        parameters.set(key, sw.Variant([parameter_dictionary[key]]))
-    parameters.set("domain_type",sw.Variant('mesh' if input_type == 'vtk' or input_type=='ply' else 'segmentation'))
-    project.set_parameters("optimize", parameters)
-    spreadsheet_file = f"{INPUT_DIR}/{dataset_name}/{dataset_name}_{project_name}.xlsx"
-    project.save(spreadsheet_file)
 
 pancreas_seg_dir = '/home/sci/nawazish.khan/non-linear-ssm-experiments/Pancreas/segmentations-centered/'
 pancreas_meshes_dir = '/home/sci/nawazish.khan/non-linear-ssm-experiments/Pancreas/meshes/'

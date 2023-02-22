@@ -23,6 +23,13 @@ import torch
 from torch.types import _size
 from typing import Tuple, Final
 
+class Swish(nn.Module):
+    def __init__(self):
+        super(Swish, self).__init__()
+
+    def forward(self, x):
+        return x * torch.sigmoid(x)
+
 def _standard_normal(shape, dtype, device):
     return torch.normal(torch.zeros(shape, dtype=dtype, device=device),
                             torch.ones(shape, dtype=dtype, device=device))
@@ -195,6 +202,8 @@ class LinearMaskedCoupling(nn.Module):
         # replace Tanh with ReLU's per MAF paper
         for i in range(len(self.t_net)):
             if not isinstance(self.t_net[i], nn.Linear): self.t_net[i] = nn.ReLU()
+            # if not isinstance(self.t_net[i], nn.Linear): self.t_net[i] = Swish()
+
 
     def inverse(self, x:torch.Tensor)-> Tuple[torch.Tensor, torch.Tensor]:
         # apply mask
@@ -348,6 +357,8 @@ class MADE(nn.Module):
             activation_fn = nn.ReLU()
         elif activation == 'tanh':
             activation_fn = nn.Tanh()
+        elif activation == 'swish':
+            activation_fn = Swish()
         else:
             raise ValueError('Check activation function.')
 
@@ -457,7 +468,14 @@ class RealNVP(nn.Module):
 
         # construct model
         modules = []
-        mask = torch.arange(input_size).float() % 2
+        # mask = torch.arange(input_size).float() % 2
+        mask = torch.zeros(input_size)
+        idx = 0
+        while idx < input_size:
+            mask[idx:idx+3] = idx%2
+            idx += 3
+        mask = mask.float()
+        
         for i in range(n_blocks):
             modules += [LinearMaskedCoupling(input_size, hidden_size, n_hidden, mask, cond_label_size)]
             mask = 1 - mask

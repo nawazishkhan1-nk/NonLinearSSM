@@ -5,12 +5,22 @@ from utils import DictMap, print_log
 import json
 import torch
 import os
+import shutil
 
 
 # Load Param File
 param_fn = sys.argv[1]
 print(f'Params loaded from file {param_fn}')
 params = DictMap(json.load(open(param_fn)))
+
+# Set Directories and their paths
+WORKING_DIR = params.working_dir
+MODEL_SAVE_DIR = f'{params.working_dir}/pytorch-models-{params.experiment_name}-{params.model}-{params.prior_update_type}-{param_fn.split("/")[-1].split(".")[0]}/'
+params.output_dir = MODEL_SAVE_DIR
+if not os.path.isdir(params.output_dir):
+    os.makedirs(params.output_dir)
+
+shutil.copy2(param_fn, params.output_dir)
 
 # Set Device
 params.device = torch.device(params.gpu_device if torch.cuda.is_available() else 'cpu')
@@ -21,11 +31,6 @@ print(f'DEVICE = {params.device}')
 torch.manual_seed(params.seed)
 
 # Set Directories and their paths
-WORKING_DIR = params.working_dir
-MODEL_SAVE_DIR = f'{params.working_dir}/pytorch-models-{params.experiment_name}-{param_fn.split("/")[-1].split(".")[0]}/'
-params.output_dir = MODEL_SAVE_DIR
-if not os.path.isdir(params.output_dir):
-    os.makedirs(params.output_dir)
 params.results_file = os.path.join(params.output_dir, params.results_file)
 burn_in_particles_dir = f'{WORKING_DIR}/{params.burn_in_dir}'
 particles_dir = f'{WORKING_DIR}/{params.project_name}_particles'
