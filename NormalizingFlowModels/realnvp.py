@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributions as D
 from torch.distributions import MultivariateNormal as MVN
-import math
 import copy
 from typing import Tuple, List
 
@@ -113,7 +112,7 @@ class RealNVP(nn.Module):
             modules += [LinearMaskedCoupling(input_size, hidden_size, n_hidden, mask, cond_label_size)]
             mask = 1 - mask
             modules += batch_norm * [BatchNorm(input_size)]
-            
+
         self.net = FlowSequential(*modules)
 
     @property
