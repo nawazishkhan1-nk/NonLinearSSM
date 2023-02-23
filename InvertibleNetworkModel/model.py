@@ -31,7 +31,7 @@ def train(model, dataloader, optimizer, epoch, args):
         loss_ar.append(loss.item())
         log_det_ar.append(log_det.item())
 
-        if i % args.log_interval == 0:
+        if epoch % args.log_interval == 0:
             if args.plot_projections:
                 plot_projections(x, model, epoch, args)
             print('epoch {:3d} / {}, step {:4d} / {}; loss {:.4f}'.format(
@@ -119,9 +119,10 @@ class InvertibleNetwork:
                 mean = 0 * mean
         
         elif update_type == 'zero_mean_anisotropic' or update_type == 'non_zero_mean_anisotropic':
-            mean, eigvals = compute_stats(self.shape_matrix)
-            indices_retained  = (torch.cumsum(eigvals, dim=0)/eigvals.sum(0)) > self.params.modes_retained
-            indices_excluded = (torch.cumsum(eigvals, dim=0)/eigvals.sum(0)) <= self.params.modes_retained
+            mean, eigvalsh = compute_stats(self.shape_matrix)
+            eigvals = eigvalsh.flip(0)
+            indices_retained  = (torch.cumsum(eigvals, dim=0)/eigvals.sum(0)) <= self.params.modes_retained
+            indices_excluded = (torch.cumsum(eigvals, dim=0)/eigvals.sum(0)) > self.params.modes_retained
             remaining_var = ((indices_excluded * eigvals).sum())/indices_excluded.sum()
             eigvals_in = indices_retained * eigvals
             eigvals_out = indices_excluded * remaining_var
@@ -129,7 +130,6 @@ class InvertibleNetwork:
             cov = torch.abs(torch.sqrt(torch.square(torch.diag(eigvals_all))))
             if update_type == "zero_mean_anisotropic":
                 mean = 0 * mean
-
 
         self.prior_mean = mean.to(self.params.device)
         self.prior_cov = cov.to(self.params.device)
@@ -185,8 +185,6 @@ class InvertibleNetwork:
         print_log("Model initialized")
 
     def generate(self, N=100):
-        if self.params.plot_densities:
-            plot_kde_plots(self.shape_matrix, self.model, self.params)
         checkpoint_path = f'{self.params.output_dir}/best_model_checkpoint.pt'
         if os.path.exists(checkpoint_path):
             state = torch.load(checkpoint_path, map_location=self.params.device)
@@ -197,4 +195,6 @@ class InvertibleNetwork:
         self.model.load_state_dict(state['model_state'])
         self.optimizer.load_state_dict(state['optimizer_state'])
         self.model.eval()
+        if self.params.plot_densities:
+            plot_kde_plots(self.shape_matrix, self.model, self.params)
         sample_and_plot_reconstructions(model=self.model, args=self.params, N=N)

@@ -23,8 +23,8 @@ def compute_stats(shape_matrix):
     x_centered = x - mean[None, :].expand(N, -1)
     cov = (x_centered.T @ x_centered)
     cov = cov / (N-1)
-    eigvals = torch.real(torch.linalg.eigvalsh(cov))
-    return mean, eigvals
+    eigvalsh = torch.real(torch.linalg.eigvalsh(cov))
+    return mean, eigvalsh
 
 @torch.no_grad()
 def project(model, x, direction='forward'):
@@ -99,14 +99,14 @@ def plot_projections(x, model, epoch, args):
     fig.suptitle('Particle Systems')
     # Plot input z
     ax = fig.add_subplot(1, 3, 1, projection='3d')
-    ax.set_title('Input Z Space -->')
+    ax.set_title(r'Input $Z$ Space -->')
     x_ = x.detach().cpu().numpy()
     x_ = x_[0, :].reshape((-1, 3))
     ax.scatter3D(x_[:, 0], x_[: , 1], x_[:, 2], color = "red")
 
     # plot z0 
     ax = fig.add_subplot(1, 3, 2, projection='3d')
-    ax.set_title("Z_0 Space -->")
+    ax.set_title(r"$Z_0$ Space -->")
     z0_ten, z0 = project(model, x[0, :],  'forward')
     M = int(z0.shape[0]//3)
     z0 = z0.reshape((M, 3))
@@ -114,7 +114,7 @@ def plot_projections(x, model, epoch, args):
 
     # plot projected z
     ax = fig.add_subplot(1, 3, 3, projection='3d')
-    ax.set_title("Projected Z Space")
+    ax.set_title(r"Projected $Z$ Space")
     _, z_new = project(model, z0_ten, 'inverse') # z0 to z
     M = int(z_new.shape[0]//3)
     z_new = z_new.reshape((M, 3))
@@ -132,12 +132,13 @@ def plot_loss_curves(loss_ar, log_det_ar, args):
     plt.clf()
     plt.plot(np.arange(len(log_det_ar)), np.array(log_det_ar), color='blue')
     plt.xlabel('Epochs')
-    plt.ylabel(r"$\Sigma(\log|Jacobian|)")
+    plt.ylabel(r"$\Sigma$(log|Jacobian|)")
     plt.savefig(f'{args.output_dir}/log_det_plot.png')
 
-@torch.no_grad()
+
 def plot_kde_plots(shape_matrix, model, args):
     model.eval()
+    np.random.seed(args.seed)
     N = shape_matrix.shape[0]
     z = shape_matrix.reshape((N, -1))
 

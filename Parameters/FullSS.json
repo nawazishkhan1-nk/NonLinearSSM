@@ -6,22 +6,22 @@
     "burn_in_dir": "burn-in-model/warped_particles",
     "results_file": "results.txt",
 
-    "experiment_name": "NewRun-0",
+    "experiment_name": "NewRun-Deep-1",
 
     "model": "realnvp",
-    "n_blocks": 5,
-    "hidden_size": 128,
-    "n_hidden": 3,
+    "n_blocks": 10,
+    "hidden_size": 256,
+    "n_hidden": 5,
     "activation_fn": "relu",
     "input_order": "sequential",
     "no_batch_norm": true,
 
     "start_epoch": 0,
-    "n_epochs": 50,
+    "n_epochs": 100,
     "batch_size":4,
     "lr": 1e-3,
 
-    "modes_retained": 0.98,
+    "modes_retained": 0.90,
     "prior_type": "non_zero_mean_anisotropic",
 
     "log_interval": 5,
