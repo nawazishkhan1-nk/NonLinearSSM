@@ -36,5 +36,6 @@
     "plot_densities": true,
 
     "num_particles_subset": null,
-    "scale_particles_input": false
+    "scale_particles_input": false,
+    "augment_data": 10
   }

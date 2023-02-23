@@ -58,12 +58,33 @@ def load_shape_matrix(particle_dir, particle_system='warped', args=None):
 # Dataloaders
 # --------------------
 
+def augment_data(shape_matrix, aug_num, sigma):
+    N, M, d = shape_matrix.shape
+    augmented_data = np.zeros((N*aug_num, M, d))
+    for i in range(N):
+        sample = shape_matrix[i, ...].reshape(-1) # dM
+        assert sample.shape[0] == (d*M)
+        mean = sample
+        cov = (sigma**2)*np.eye(d*M)
+        samples = np.random.multivariate_normal(mean, cov, aug_num) # aug_num X dM
+        assert samples.shape[0] == aug_num and samples.shape[1] == (d*M)
+        samples = samples.reshape((-1, d))
+        augmented_data[i:aug_num, ...] = samples
+    return augmented_data
+
 def fetch_dataloaders(particle_dir, particle_system='world', args=None):
 
     # grab datasets
     device = args.device
-    dataset, n_dims = load_shape_matrix(particle_dir, particle_system, args)
+    shape_matrix, n_dims = load_shape_matrix(particle_dir, particle_system, args)
+    augmented_data = None
+    dataset = shape_matrix
     np.random.seed(args.seed)
+    if args.augment_data is not None:
+        augmented_data = augment_data(dataset, aug_num=args.augment_data, sigma=0.01)
+        dataset = np.concatenate([dataset, augmented_data], 0)
+        print(f'Data Augmentation done')
+    
     train_len = int(args.train_test_split * dataset.shape[0])
     shuffled_indices = np.random.permutation(dataset.shape[0])
     train_data = dataset[shuffled_indices[:train_len]]
@@ -94,4 +115,4 @@ def fetch_dataloaders(particle_dir, particle_system='world', args=None):
     test_loader = DataLoader(test_dataset, args.batch_size, shuffle=False, **kwargs)
     # print('Dataloader constructed')
 
-    return train_loader, test_loader, dataset
+    return train_loader, test_loader, shape_matrix
