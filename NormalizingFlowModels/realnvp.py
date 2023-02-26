@@ -3,8 +3,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributions as D
 from torch.distributions import MultivariateNormal as MVN
+import torch.autograd as autograd
 import copy
 from typing import Tuple, List
+from .standardnormal import Normal
 
 class LinearMaskedCoupling(nn.Module):
     def __init__(self, input_size, hidden_size, n_hidden, mask, cond_label_size=None)->None:
@@ -20,6 +22,7 @@ class LinearMaskedCoupling(nn.Module):
         for i in range(len(self.t_net)):
             if not isinstance(self.t_net[i], nn.Linear): self.t_net[i] = nn.ReLU()
 
+    # @torch.jit.export
     def forward(self, x:torch.Tensor)-> Tuple[torch.Tensor, torch.Tensor]:
         mx = x * self.mask
         s = self.s_net(mx)
@@ -28,6 +31,7 @@ class LinearMaskedCoupling(nn.Module):
         log_abs_det_jacobian = - (1 - self.mask) * s  # log det du/dx; sum over input_size done at model log_prob
         return u, log_abs_det_jacobian
 
+    @torch.jit.export
     def inverse(self, u:torch.Tensor)-> Tuple[torch.Tensor, torch.Tensor]:
         mu = u * self.mask
         s = self.s_net(mu)
@@ -75,18 +79,23 @@ class BatchNorm(nn.Module):
         log_abs_det_jacobian = 0.5 * torch.log(var + self.eps) - self.log_gamma
         return x, log_abs_det_jacobian.expand_as(x)
   
-class FlowSequential(nn.Sequential):
+class FlowSequential(nn.Module):
     """ Container for layers of a normalizing flow """
-    def forward(self, x):
+
+    def __init__(self, args:torch.nn.ModuleList):
+        super().__init__()
+        self.layers: torch.nn.ModuleList = args
+
+    def forward(self, x:torch.Tensor)-> Tuple[torch.Tensor, torch.Tensor]:
         sum_log_abs_det_jacobians = 0
-        for module_layer in self:
+        for module_layer in self.layers:
             x, log_abs_det_jacobian = module_layer(x)
             sum_log_abs_det_jacobians = sum_log_abs_det_jacobians + log_abs_det_jacobian
         return x, sum_log_abs_det_jacobians
 
-    def inverse(self, u):
+    def inverse(self, u:torch.Tensor)->Tuple[torch.Tensor, torch.Tensor]:
         sum_log_abs_det_jacobians = 0
-        for module_layer in reversed(self):
+        for module_layer in self.layers[::-1]:
             u, log_abs_det_jacobian = module_layer.inverse(u)
             sum_log_abs_det_jacobians = sum_log_abs_det_jacobians + log_abs_det_jacobian
         return u, sum_log_abs_det_jacobians
@@ -96,8 +105,10 @@ class RealNVP(nn.Module):
         super().__init__()
         base_dist_mean = mean if mean is not None else torch.zeros(input_size)
         base_dist_var = cov if cov is not None else torch.eye(input_size)
-        self.register_buffer('base_dist_mean', base_dist_mean)
-        self.register_buffer('base_dist_var', base_dist_var)
+        # self.register_buffer('base_dist_mean', base_dist_mean)
+        # self.register_buffer('base_dist_var', base_dist_var)
+        self.base_dist_mean = base_dist_mean
+        self.base_dist_var = base_dist_var
         modules = []
 
         # mask = torch.arange(input_size).float() % 2
@@ -113,19 +124,37 @@ class RealNVP(nn.Module):
             mask = 1 - mask
             modules += batch_norm * [BatchNorm(input_size)]
 
-        self.net = FlowSequential(*modules)
+        list_modules = nn.ModuleList(modules)
+        self.net = FlowSequential(list_modules)
 
     @property
     def prior(self):
-        return D.Normal(self.base_dist_mean, self.base_dist_var)
+        return Normal(self.base_dist_mean, self.base_dist_var)
 
-    def forward(self, x):
+    def forward(self, x:torch.Tensor)->Tuple[torch.Tensor, torch.Tensor]:
         return self.net(x)
     
-    def inverse(self, u):
+    @torch.jit.export
+    def inverse(self, u:torch.Tensor)->Tuple[torch.Tensor, torch.Tensor]:
         return self.net.inverse(u)  
 
-    def log_prob(self, x):
+    @torch.jit.export
+    def log_prob(self, x:torch.Tensor)->Tuple[torch.Tensor, torch.Tensor]:
         u, sum_log_abs_det_jacobians = self.forward(x)
         return torch.sum(self.prior.log_prob(u) + sum_log_abs_det_jacobians, dim=1), sum_log_abs_det_jacobians.sum(dim=1)
+    @torch.jit.export
+    def set_base_dist_mean(self, x:torch.Tensor):
+        self.base_dist_mean = x
+
+    @torch.jit.export
+    def set_base_dist_var(self, x:torch.Tensor):
+        self.base_dist_var = x
+
+
+    # def forward_output_only(self, x):
+    #     u, sum_log_abs_det_jacobians = self.forward(x)
+    #     return u
     
+    # def compute_jacobian(self, x):
+    #     res = autograd.functional.jacobian(self.forward_output_only, x)
+    #     return res

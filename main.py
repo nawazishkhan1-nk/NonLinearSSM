@@ -40,4 +40,5 @@ inv_net.initialize_particles(init_particles_dir=burn_in_particles_dir, particle_
 inv_net.initialize_prior_dist(update_type=params.prior_type)
 inv_net.initialize_model()
 inv_net.train_model()
+inv_net.serialize_model()
 inv_net.generate(100)

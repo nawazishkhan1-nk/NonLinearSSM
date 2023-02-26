@@ -3,6 +3,7 @@ import glob
 import matplotlib
 import torch
 import os
+import time
 matplotlib.use('Agg')
 matplotlib.rcParams["text.usetex"]
 import matplotlib.pyplot as plt
@@ -39,7 +40,7 @@ def project(model, x, direction='forward'):
 @torch.no_grad()
 def sample_from_base(model, n_samples=1):
     model.eval()
-    z0 = model.prior.sample((n_samples, ))
+    z0 = model.prior.sample([n_samples, ])
     z0_np = z0.detach().cpu().numpy()
     return z0, z0_np
         
@@ -51,6 +52,30 @@ def sample_and_plot_reconstructions(model, args, N):
     z0_ten = z0_ten.to(args.device)
     print(f'z0_ten shape is  {z0_ten.shape}')
     _, z_new = project(model, z0_ten, 'inverse') # z0 to z
+    # dM = z0_ten.shape[1]
+    # # Test jacobian
+    # print(f'Testing jacobian dM = {dM}')
+    # t0 = time.time()
+    # jac = model.compute_jacobian(z0_ten[0])
+    # t1 = time.time()
+    # print(f'jac shape is {jac.shape} in {t1-t0:.4f} seconds')
+
+
+    # t0 = time.time()
+    # z0_new = z0_ten[0]
+    # z0_new = z0_new.repeat(dM, 1)
+    # z0_new.requires_grad_(True)
+    # u, logdet = model.forward(z0_new)
+    # ones = torch.eye(dM).to(args.device)
+    # u.backward(ones)
+    # jac_ = z0_new.grad.data
+    # t1 = time.time()
+    # print(f'u shape is {u.shape} and jac new shape is {jac_.shape} in {t1-t0:.4f} seconds')
+    # print(f'same is {torch.allclose(jac, jac_)}')
+    # np.save(f'{args.output_dir}/jacobian.npy', jac.detach().cpu().numpy())
+    # np.save(f'{args.output_dir}/jacobian_.npy', jac_.detach().cpu().numpy())
+    # np.save(f'{args.output_dir}/u_tensor.npy', u.detach().cpu().numpy())
+    # np.save(f'{args.output_dir}/log_det.npy', logdet.detach().cpu().numpy())
 
     for i in range(N):
         print(f'Sampling {i} sample .... ')
@@ -145,7 +170,7 @@ def plot_kde_plots(shape_matrix, model, args):
     z_data = torch.from_numpy(z).float()
     z_0_data, _ = model(z_data.to(args.device))
 
-    z0_prior_data = model.prior.sample((N,))
+    z0_prior_data = model.prior.sample([N,])
     z_new_data, _ = model.inverse(z0_prior_data.to(args.device))
 
     z0 = z_0_data.detach().cpu().numpy()

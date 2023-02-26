@@ -62,18 +62,19 @@ def augment_data(shape_matrix, aug_num, sigma):
     N, M, d = shape_matrix.shape
     augmented_data = np.zeros((N*aug_num, M, d))
     for i in range(N):
+        print(f'Augmenting {i+1} th sample...')
         sample = shape_matrix[i, ...].reshape(-1) # dM
         assert sample.shape[0] == (d*M)
         mean = sample
         cov = (sigma**2)*np.eye(d*M)
         samples = np.random.multivariate_normal(mean, cov, aug_num) # aug_num X dM
         assert samples.shape[0] == aug_num and samples.shape[1] == (d*M)
-        samples = samples.reshape((-1, d))
-        augmented_data[i:aug_num, ...] = samples
+        samples = samples.reshape((aug_num, M, d))
+        idx = i * aug_num
+        augmented_data[idx:idx+aug_num, ...] = samples
     return augmented_data
 
 def fetch_dataloaders(particle_dir, particle_system='world', args=None):
-
     # grab datasets
     device = args.device
     shape_matrix, n_dims = load_shape_matrix(particle_dir, particle_system, args)
@@ -81,7 +82,8 @@ def fetch_dataloaders(particle_dir, particle_system='world', args=None):
     dataset = shape_matrix
     np.random.seed(args.seed)
     if args.augment_data is not None:
-        augmented_data = augment_data(dataset, aug_num=args.augment_data, sigma=0.01)
+        augmented_data = augment_data(dataset, aug_num=args.augment_data, sigma=args.aug_sigma)
+        # augmented_data = np.load(f'{args.output_dir}/augmented_data.npy')
         dataset = np.concatenate([dataset, augmented_data], 0)
         print(f'Data Augmentation done')
     
@@ -114,5 +116,8 @@ def fetch_dataloaders(particle_dir, particle_system='world', args=None):
     train_loader = DataLoader(train_dataset, args.batch_size, shuffle=True, **kwargs)
     test_loader = DataLoader(test_dataset, args.batch_size, shuffle=False, **kwargs)
     # print('Dataloader constructed')
+    np.save(f'{args.output_dir}/shape_matrix_data.npy', shape_matrix)
+    np.save(f'{args.output_dir}/augmented_data.npy', augmented_data)
+
 
     return train_loader, test_loader, shape_matrix

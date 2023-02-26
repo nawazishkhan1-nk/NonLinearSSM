@@ -130,6 +130,11 @@ class InvertibleNetwork:
             cov = torch.abs(torch.sqrt(torch.square(torch.diag(eigvals_all))))
             if update_type == "zero_mean_anisotropic":
                 mean = 0 * mean
+        elif update_type == 'full_eigen_spectrum':
+            mean, eigvals = compute_stats(self.shape_matrix)
+            cov = torch.abs(torch.sqrt(torch.square(torch.diag(eigvals))))
+        else:
+            raise RuntimeError('Invalid Prior Type')
 
         self.prior_mean = mean.to(self.params.device)
         self.prior_cov = cov.to(self.params.device)
@@ -197,4 +202,5 @@ class InvertibleNetwork:
         self.model.eval()
         if self.params.plot_densities:
             plot_kde_plots(self.shape_matrix, self.model, self.params)
+
         sample_and_plot_reconstructions(model=self.model, args=self.params, N=N)
