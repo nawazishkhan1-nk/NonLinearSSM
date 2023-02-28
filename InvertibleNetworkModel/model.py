@@ -6,7 +6,80 @@ import torch
 import torch.optim as optim
 from data import fetch_dataloaders
 from utils import print_log, plot_projections, plot_kde_plots, plot_loss_curves, sample_and_plot_reconstructions, compute_stats
-from NormalizingFlowModels.realnvp import (RealNVP)
+from utils_cnf import AverageValueMeter, save, visualize_point_clouds
+from ContinousNormalizingFlows.networks import PointFlow
+import time
+import scipy.misc
+from tensorboardX import SummaryWriter
+
+def train_new(model, optimizer, scheduler, train_loader, test_loader, args):
+    if args.log_name is not None:
+        log_dir = "runs/%s" % args.log_name
+    else:
+        log_dir = "runs/time-%d" % time.time()
+
+    writer = SummaryWriter(logdir=log_dir)
+    args.prior_weight = 0
+    args.entropy_weight = 0
+    start_epoch = 0
+
+    clf_loaders = None
+    # main training loop
+    start_time = time.time()
+    point_nats_avg_meter = AverageValueMeter()
+
+    print("Start epoch: %d End epoch: %d" % (start_epoch, args.epochs))
+    for epoch in range(start_epoch, args.epochs):
+        # adjust the learning rate
+        if (epoch + 1) % args.exp_decay_freq == 0:
+            scheduler.step(epoch=epoch)
+            if writer is not None:
+                writer.add_scalar('lr/optimizer', scheduler.get_lr()[0], epoch)
+
+        # train for one epoch
+        for bidx, data in enumerate(train_loader):
+            tr_batch = data[0].view(data[0].shape[0], -1)
+            # idx_batch, tr_batch, te_batch = data['idx'], data['train_points'], data['test_points'] # TODO: Change
+            step = bidx + len(train_loader) * epoch
+            model.train()
+            inputs = tr_batch.cuda(args.gpu, non_blocking=True)
+            out = model(inputs, optimizer, step, writer)
+            recon_nats = out['recon_nats']
+            point_nats_avg_meter.update(recon_nats)
+            if step % args.log_freq == 0:
+                duration = time.time() - start_time
+                start_time = time.time()
+                print("Epoch %d Batch [%2d/%2d] Time [%3.2fs] PointNats %2.5f"
+                      % (epoch, bidx, len(train_loader), duration, point_nats_avg_meter.avg))
+
+        # evaluate on the validation set
+        if not args.no_validation and (epoch + 1) % args.val_freq == 0:
+            # TODO: Change validation code
+            from utils_cnf import validate
+            validate(test_loader, model, epoch, writer, args.save_dir, args, clf_loaders=clf_loaders)
+
+        # save visualizations
+        if (epoch + 1) % args.viz_freq == 0:
+            # reconstructions
+            model.eval()
+            samples = model.reconstruct(inputs) # Reconstructions
+            results = []
+            for idx in range(min(10, inputs.size(0))):
+                # TODO: Better interpret
+                res = visualize_point_clouds(samples[idx], inputs[idx], idx,
+                                             pert_order=train_loader.dataset.display_axis_order)
+                results.append(res)
+            res = np.concatenate(results, axis=1)
+            scipy.misc.imsave(os.path.join(args.save_dir, 'images', 'tr_vis_conditioned_epoch%d-gpu%s.png' % (epoch, args.gpu)),
+                              res.transpose((1, 2, 0)))
+            if writer is not None:
+                writer.add_image('tr_vis/conditioned', torch.as_tensor(res), epoch)
+        # save checkpoints
+        if (epoch + 1) % args.save_freq == 0:
+            save(model, optimizer, epoch + 1,
+                     os.path.join(args.save_dir, 'checkpoint-%d.pt' % epoch))
+            save(model, optimizer, epoch + 1,
+                     os.path.join(args.save_dir, 'checkpoint-latest.pt'))
 
 def train(model, dataloader, optimizer, epoch, args):
     loss_ar = []
@@ -37,49 +110,7 @@ def train(model, dataloader, optimizer, epoch, args):
             print('epoch {:3d} / {}, step {:4d} / {}; loss {:.4f}'.format(
                     epoch, args.start_epoch + args.n_epochs, i, len(dataloader), loss.item()))
     return np.mean(np.array(loss_ar)), np.mean(np.array(log_det_ar))
-
-@torch.no_grad()
-def evaluate(model, dataloader, epoch, args):
-    model.eval()
-    logprobs = []
-    for data in dataloader:
-        x = data[0].view(data[0].shape[0], -1).to(args.device)
-        log_prob, _ = model.log_prob(x)
-        logprobs.append(log_prob)
-    logprobs = torch.cat(logprobs, dim=0).to(args.device)
-    logprob_mean, logprob_std = logprobs.mean(0), 2 * logprobs.var(0).sqrt() / math.sqrt(len(dataloader.dataset))
-    output = 'Evaluate ' + (epoch != None)*'(epoch {}) -- '.format(epoch) + 'logp(x) = {:.3f} +/- {:.3f}'.format(logprob_mean, logprob_std)
-    print(output)
-    print(output, file=open(args.results_file, 'a'))
-    return logprob_mean, logprob_std
-
-def train_and_evaluate(model, train_loader, test_loader, optimizer, args, training_from_last_checkpoint=False):
-    print_log(f'Training started ... ')
-    best_eval_logprob = float('-inf')
-    # n_epochs = args.n_epochs if not training_from_last_checkpoint else args.n_epochs_during_optimize
-    n_epochs = args.n_epochs
-
-    loss_ar = []
-    log_det_ar = []
-    for i in range(args.start_epoch, args.start_epoch + n_epochs):
-        loss_val, log_det_val = train(model, train_loader, optimizer, i, args)
-        eval_logprob, _ = evaluate(model, test_loader, i, args)
-        loss_ar.append(loss_val)
-        log_det_ar.append(log_det_val)
-        torch.save({'epoch': i,
-                    'model_state': model.state_dict(),
-                    'optimizer_state': optimizer.state_dict()},
-                    os.path.join(args.output_dir, 'model_checkpoint.pt'))
-        torch.save(model.state_dict(), os.path.join(args.output_dir, 'model_state.pt'))
-        if eval_logprob > best_eval_logprob:
-            best_eval_logprob = eval_logprob
-            torch.save({'epoch': i,
-                        'model_state': model.state_dict(),
-                        'optimizer_state': optimizer.state_dict()},
-                        os.path.join(args.output_dir, 'best_model_checkpoint.pt'))
-    if args.plot_loss_log:
-        plot_loss_curves(loss_ar, log_det_ar, args)
-
+               
 class InvertibleNetwork:
     def __init__(self, params) -> None:
         torch.cuda.empty_cache()
@@ -157,21 +188,34 @@ class InvertibleNetwork:
 
     def initialize_model(self):
         args = self.params
-        if args.model =='realnvp':
-            self.model = RealNVP(args.n_blocks, args.input_size, args.hidden_size, args.n_hidden, args.cond_label_size,
-                            batch_norm=not args.no_batch_norm, mean=self.prior_mean, cov=self.prior_cov)
-        else:
+        if args.model =='cnf':
+            self.model = PointFlow(args)
+        else:    
             raise ValueError('Unrecognized model.')
-        
         if args.multi_gpu:
-
             self.model = torch.nn.DataParallel(self.model)
-        self.model = self.model.to(args.device)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=args.lr, weight_decay=1e-6)
+        torch.cuda.set_device(args.gpu)
+        self.model = self.model.cuda(args.gpu)
+        self.optimizer = self.model.make_optimizer(args)
         print_log('Model Initialized')
+
+        # initialize the learning rate scheduler
+        if args.scheduler == 'exponential':
+            self.scheduler = optim.lr_scheduler.ExponentialLR(self.ptimizer, args.exp_decay)
+        elif args.scheduler == 'step':
+            self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=args.epochs // 2, gamma=0.1)
+        elif args.scheduler == 'linear':
+            def lambda_rule(ep):
+                lr_l = 1.0 - max(0, ep - 0.5 * args.epochs) / float(0.5 * args.epochs)
+                return lr_l
+            self.scheduler = optim.lr_scheduler.LambdaLR(self.optimizer, lr_lambda=lambda_rule)
+        else:
+            assert 0, "args.schedulers should be either 'exponential' or 'linear'"
     
     def train_model(self):
-        train_and_evaluate(self.model, self.train_dataloader, self.test_dataloader, self.optimizer, self.params)
+        train_new(model=self.model, optimizer=self.optimizer, 
+                  scheduler=self.scheduler, train_loader=self.train_dataloader, 
+                  test_loader=self.test_dataloader, args=self.params)
 
     def serialize_model(self):
         print('*********** Serializing to TorchScript Module *****************')
@@ -189,23 +233,6 @@ class InvertibleNetwork:
         torch.jit.save(sm, serialized_model_path)
         print(f'******************** Serialized Module saved ************************')
         return serialized_model_path
-
-    def train_model_continue(self, best=True):
-        print_log('Loading Last best model')
-        checkpoint_path = f'{self.params.output_dir}/best_model_checkpoint.pt'
-        if os.path.exists(checkpoint_path) and best:
-            state = torch.load(checkpoint_path, map_location=self.device)
-            print_log('Best Checkpoint Path')
-
-        else:
-            checkpoint_path = f'{self.params.output_dir}/model_checkpoint.pt'
-            state = torch.load(checkpoint_path, map_location=self.device)
-            print_log('Last Checkpoint Path')
-        self.model.load_state_dict(state['model_state'])
-        self.optimizer.load_state_dict(state['optimizer_state'])
-        self.model.train()
-        train_and_evaluate(self.model, self.train_dataloader, self.test_dataloader, self.optimizer, self.params, training_from_last_checkpoint=True)
-        print_log("Model initialized")
 
     def generate(self, N=100):
         checkpoint_path = f'{self.params.output_dir}/best_model_checkpoint.pt'

@@ -342,29 +342,6 @@ def validate(test_loader, model, epoch, writer, save_dir, args, clf_loaders=None
     else:
         save_dir = None
 
-    # classification
-    if args.eval_classification and clf_loaders is not None:
-        for clf_expr, loaders in clf_loaders.items():
-            with torch.no_grad():
-                clf_val_res = validate_classification(loaders, model, args)
-
-            for k, v in clf_val_res.items():
-                if writer is not None and v is not None:
-                    writer.add_scalar('val_%s/%s' % (clf_expr, k), v, epoch)
-
-    # samples
-    if args.use_latent_flow:
-        with torch.no_grad():
-            val_sample_res = validate_sample(
-                test_loader, model, args, max_samples=args.max_validate_shapes,
-                save_dir=save_dir)
-
-        for k, v in val_sample_res.items():
-            if not isinstance(v, float):
-                v = v.cpu().detach().item()
-            if writer is not None and v is not None:
-                writer.add_scalar('val_sample/%s' % k, v, epoch)
-
     # reconstructions
     with torch.no_grad():
         val_res = validate_conditioned(

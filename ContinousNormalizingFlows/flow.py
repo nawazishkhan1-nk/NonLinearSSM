@@ -6,7 +6,6 @@ from .cnf import CNF, SequentialFlow
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-
 def build_model(args, input_dim, hidden_dims, context_dim, num_blocks, conditional):
     def build_cnf():
         diffeq = ODEnet(
@@ -44,16 +43,8 @@ def build_model(args, input_dim, hidden_dims, context_dim, num_blocks, condition
 
     return model
 
-
 def get_point_cnf(args):
     dims = tuple(map(int, args.dims.split("-")))
-    model = build_model(args, args.input_dim, dims, args.zdim, args.num_blocks, True).to(args.device)
+    model = build_model(args=args, input_dim=args.input_dim, hidden_dims=dims, context_dim=0, num_blocks=args.num_blocks, conditional=False).to(args.device)
     print("Number of trainable parameters of Point CNF: {}".format(count_parameters(model)))
-    return model
-
-
-def get_latent_cnf(args):
-    dims = tuple(map(int, args.latent_dims.split("-")))
-    model = build_model(args, args.zdim, dims, 0, args.latent_num_blocks, False).to(args.device)
-    print("Number of trainable parameters of Latent CNF: {}".format(count_parameters(model)))
     return model

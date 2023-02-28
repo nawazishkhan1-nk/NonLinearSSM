@@ -8,7 +8,7 @@
 
     "experiment_name": "NewExperimentCheck2",
 
-    "model": "realnvp",
+    "model": "cnf",
     "n_blocks": 5,
     "hidden_size": 256,
     "n_hidden": 10,
@@ -18,13 +18,12 @@
 
     "start_epoch": 0,
     "n_epochs": 200,
-    "lr": 1e-4,
 
     "modes_retained": 0.90,
     "prior_type": "non_zero_mean_isotropic",
 
     "log_interval": 5,
-    "seed": 11,
+
     "train_test_split": 0.85,
 
     "plot_projections": true,
@@ -37,7 +36,57 @@
     "num_particles_subset": null,
     "scale_particles_input": false,
 
-    "batch_size":20,
     "augment_data": null,
-    "aug_sigma": 0.1
+    "aug_sigma": 0.1,
+
+
+    "lr": 2e-3,
+    "dims": "512-512-512",
+    "input_dim": 3,
+    "latent_dims": "256-256",
+    "num_blocks": 1,
+    "latent_num_blocks": 1,
+
+    "zdim": 128, 
+
+    "batch_size": 16,
+    "epochs": 4000,
+    "save_freq": 50,
+    "viz_freq": 1,
+    "log_freq":  1,
+    "val_freq": 10,
+    "use_deterministic_encoder": true,
+    "prior_weight": 0, 
+    "entropy_weight": 0,
+    "gpu": 0,
+    "log_name": "cnf_results",
+
+    "nonlinearity": "tanh",
+    "layer_type": "concatsquash",
+    "time_length": 0.5,
+    "train_T": true,
+    "use_adjoint": true,
+    "solver": "dopri5",
+    "atol": 1e-5,
+    "rtol": 1e-5,
+    "batch_norm": true,
+    "sync_bn": false,
+    "bn_lag": 0.0,
+
+    "beta1": 0.9,
+    "beta2": 0.999,
+    "momentum": 0.9,
+    "weight_decay": 0.0,
+    "recon_weight": 1,
+
+    "exp_decay": 1.0,
+    "exp_decay_freq": 1,
+    "no_validation": true,
+
+
+
+
+
+
+    "seed": 11
   }

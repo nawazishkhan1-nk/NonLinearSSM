@@ -19,6 +19,10 @@ if not os.path.isdir(params.output_dir):
     os.makedirs(params.output_dir)
 shutil.copy2(param_fn, params.output_dir)
 
+params.save_dir = os.path.join("checkpoints", params.log_name)
+if not os.path.exists(params.save_dir):
+    os.makedirs(params.save_dir)
+    os.makedirs(os.path.join(params.save_dir, 'images'))
 # Set Device
 params.device = torch.device(params.gpu_device if torch.cuda.is_available() else 'cpu')
 DEVICE = params.device
@@ -37,8 +41,5 @@ project_file_path = f'{WORKING_DIR}/{params.project_name}.xlsx'
 global inv_net
 inv_net = InvertibleNetwork(params=params)
 inv_net.initialize_particles(init_particles_dir=burn_in_particles_dir, particle_system='warped')
-inv_net.initialize_prior_dist(update_type=params.prior_type)
 inv_net.initialize_model()
 inv_net.train_model()
-inv_net.serialize_model()
-inv_net.generate(100)
