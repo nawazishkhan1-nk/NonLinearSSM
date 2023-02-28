@@ -56,7 +56,9 @@ def evaluate(model, dataloader, epoch, args):
 def train_and_evaluate(model, train_loader, test_loader, optimizer, args, training_from_last_checkpoint=False):
     print_log(f'Training started ... ')
     best_eval_logprob = float('-inf')
-    n_epochs = args.n_epochs if not training_from_last_checkpoint else args.n_epochs_during_optimize
+    # n_epochs = args.n_epochs if not training_from_last_checkpoint else args.n_epochs_during_optimize
+    n_epochs = args.n_epochs
+
     loss_ar = []
     log_det_ar = []
     for i in range(args.start_epoch, args.start_epoch + n_epochs):
@@ -106,10 +108,14 @@ class InvertibleNetwork:
             mean = torch.zeros(dM)
             cov = torch.eye(dM)
 
+        elif update_type == 'new_cov':
+            mean = torch.zeros(dM)
+            cov = torch.eye(dM)
+            for i in range(dM//2):
+                cov[i, i] = 10
         elif update_type == 'default_diagonal_cov':
             mean = torch.zeros(dM)
             cov = 0.001 * torch.eye(dM)
-            
         elif update_type == 'zero_mean_isotropic' or update_type =='non_zero_mean_isotropic':
             mean, eigvals = compute_stats(self.shape_matrix)
             mean_eig_val = eigvals.mean(0)
@@ -123,16 +129,21 @@ class InvertibleNetwork:
             eigvals = eigvalsh.flip(0)
             indices_retained  = (torch.cumsum(eigvals, dim=0)/eigvals.sum(0)) <= self.params.modes_retained
             indices_excluded = (torch.cumsum(eigvals, dim=0)/eigvals.sum(0)) > self.params.modes_retained
-            remaining_var = ((indices_excluded * eigvals).sum())/indices_excluded.sum()
-            eigvals_in = indices_retained * eigvals
+            explained_variance = eigvals/eigvals.sum()
+            np.save(f'{self.params.output_dir}/eigvals.npy', eigvals.detach().cpu().numpy())
+            np.save(f'{self.params.output_dir}/explained_var.npy', explained_variance.detach().cpu().numpy())
+            remaining_var = ((indices_excluded * explained_variance).sum())/indices_excluded.sum()
+            eigvals_in = indices_retained * explained_variance
             eigvals_out = indices_excluded * remaining_var
             eigvals_all = eigvals_in + eigvals_out
+            np.save(f'{self.params.output_dir}/eigavalls_all.npy', eigvals_all.detach().cpu().numpy())
             cov = torch.abs(torch.sqrt(torch.square(torch.diag(eigvals_all))))
             if update_type == "zero_mean_anisotropic":
                 mean = 0 * mean
         elif update_type == 'full_eigen_spectrum':
             mean, eigvals = compute_stats(self.shape_matrix)
             cov = torch.abs(torch.sqrt(torch.square(torch.diag(eigvals))))
+            cov = 100 * cov
         else:
             raise RuntimeError('Invalid Prior Type')
 
@@ -151,6 +162,10 @@ class InvertibleNetwork:
                             batch_norm=not args.no_batch_norm, mean=self.prior_mean, cov=self.prior_cov)
         else:
             raise ValueError('Unrecognized model.')
+        
+        if args.multi_gpu:
+
+            self.model = torch.nn.DataParallel(self.model)
         self.model = self.model.to(args.device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=args.lr, weight_decay=1e-6)
         print_log('Model Initialized')
@@ -175,14 +190,17 @@ class InvertibleNetwork:
         print(f'******************** Serialized Module saved ************************')
         return serialized_model_path
 
-    def train_model_continue(self):
+    def train_model_continue(self, best=True):
         print_log('Loading Last best model')
         checkpoint_path = f'{self.params.output_dir}/best_model_checkpoint.pt'
-        if os.path.exists(checkpoint_path):
+        if os.path.exists(checkpoint_path) and best:
             state = torch.load(checkpoint_path, map_location=self.device)
+            print_log('Best Checkpoint Path')
+
         else:
             checkpoint_path = f'{self.params.output_dir}/model_checkpoint.pt'
             state = torch.load(checkpoint_path, map_location=self.device)
+            print_log('Last Checkpoint Path')
         self.model.load_state_dict(state['model_state'])
         self.optimizer.load_state_dict(state['optimizer_state'])
         self.model.train()

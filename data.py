@@ -74,6 +74,21 @@ def augment_data(shape_matrix, aug_num, sigma):
         augmented_data[idx:idx+aug_num, ...] = samples
     return augmented_data
 
+def augment_data_noise(shape_matrix, aug_num, sigma):
+    N, M, d = shape_matrix.shape
+    augmented_data = np.zeros((N*aug_num, M, d))
+    for i in range(N):
+        print(f'Augmenting {i+1} th sample...')
+        sample = shape_matrix[i, ...].reshape(-1) # dM
+        assert sample.shape[0] == (d*M)
+        mean = sample
+        aug_samples= (sigma * np.random.randn(aug_num, d*M)) + mean[None, ...] # aug_num X dM
+        assert aug_samples.shape[0] == aug_num and aug_samples.shape[1] == (d*M)
+        aug_samples = aug_samples.reshape((aug_num, M, d))
+        idx = i * aug_num
+        augmented_data[idx:idx+aug_num, ...] = aug_samples
+    return augmented_data
+
 def fetch_dataloaders(particle_dir, particle_system='world', args=None):
     # grab datasets
     device = args.device
@@ -82,7 +97,7 @@ def fetch_dataloaders(particle_dir, particle_system='world', args=None):
     dataset = shape_matrix
     np.random.seed(args.seed)
     if args.augment_data is not None:
-        augmented_data = augment_data(dataset, aug_num=args.augment_data, sigma=args.aug_sigma)
+        augmented_data = augment_data_noise(dataset, aug_num=args.augment_data, sigma=args.aug_sigma)
         # augmented_data = np.load(f'{args.output_dir}/augmented_data.npy')
         dataset = np.concatenate([dataset, augmented_data], 0)
         print(f'Data Augmentation done')

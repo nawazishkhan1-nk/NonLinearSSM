@@ -22,7 +22,7 @@ shutil.copy2(param_fn, params.output_dir)
 # Set Device
 params.device = torch.device(params.gpu_device if torch.cuda.is_available() else 'cpu')
 DEVICE = params.device
-print_log(f'DEVICE = {params.device}')
+print_log(f'DEVICE = {params.device} | Multi-GPU = {params.multi_gpu}')
 
 # Set Seed
 torch.manual_seed(params.seed)

@@ -86,23 +86,23 @@ def create_burn_in_sw_project(input_dir, input_type, warped_particles_dir, datas
      
 if __name__ == "__main__":
     DATASET = sys.argv[1]
-    if DATASET == 'supershapes':
-        train_input_dir = f'{INPUT_DIR}/{DATASET}/train-val/'
+    if DATASET == 'supershapes_1500':
+        train_input_dir = f'{INPUT_DIR}/{DATASET}/'
         burn_in_dir = f'{INPUT_DIR}/{DATASET}/burn-in-model/'
         medoid_input_dir = f'{burn_in_dir}/medoid/'
         # 1
         # find_medoid_mesh(mesh_dir_path=train_input_dir)
         
         #2
-        # convert_to_images(input_dirs=[train_input_dir, medoid_input_dir])
+        convert_to_images(input_dirs=[train_input_dir, medoid_input_dir])
 
         #3
-        # deform_and_warp(input_dir=f'{train_input_dir}/segmentations',
-        #                 medoid_seg_file=glob.glob(f'{medoid_input_dir}/segmentations/*.nrrd')[0],
-        #                 medoid_particles_file=glob.glob(f'{medoid_input_dir}/particles/*.particles')[0],
-        #                 out_dir=f'{burn_in_dir}/warped_particles/', M=1024)
+        deform_and_warp(input_dir=f'{train_input_dir}/segmentations',
+                        medoid_seg_file=glob.glob(f'{medoid_input_dir}/segmentations/*.nrrd')[0],
+                        medoid_particles_file=glob.glob(f'{medoid_input_dir}/particles/*.particles')[0],
+                        out_dir=f'{burn_in_dir}/warped_particles/', M=1024)
         
 
-        #4
-        create_burn_in_sw_project(input_dir=f'{train_input_dir}/meshes/', input_type='ply',
-                                warped_particles_dir=f'{burn_in_dir}/warped_particles/', dataset_name=DATASET)
+        # #4
+        # create_burn_in_sw_project(input_dir=f'{train_input_dir}/meshes/', input_type='ply',
+        #                         warped_particles_dir=f'{burn_in_dir}/warped_particles/', dataset_name=DATASET)

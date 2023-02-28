@@ -22,7 +22,6 @@ class LinearMaskedCoupling(nn.Module):
         for i in range(len(self.t_net)):
             if not isinstance(self.t_net[i], nn.Linear): self.t_net[i] = nn.ReLU()
 
-    # @torch.jit.export
     def forward(self, x:torch.Tensor)-> Tuple[torch.Tensor, torch.Tensor]:
         mx = x * self.mask
         s = self.s_net(mx)
@@ -105,8 +104,6 @@ class RealNVP(nn.Module):
         super().__init__()
         base_dist_mean = mean if mean is not None else torch.zeros(input_size)
         base_dist_var = cov if cov is not None else torch.eye(input_size)
-        # self.register_buffer('base_dist_mean', base_dist_mean)
-        # self.register_buffer('base_dist_var', base_dist_var)
         self.base_dist_mean = base_dist_mean
         self.base_dist_var = base_dist_var
         modules = []
@@ -142,6 +139,7 @@ class RealNVP(nn.Module):
     def log_prob(self, x:torch.Tensor)->Tuple[torch.Tensor, torch.Tensor]:
         u, sum_log_abs_det_jacobians = self.forward(x)
         return torch.sum(self.prior.log_prob(u) + sum_log_abs_det_jacobians, dim=1), sum_log_abs_det_jacobians.sum(dim=1)
+
     @torch.jit.export
     def set_base_dist_mean(self, x:torch.Tensor):
         self.base_dist_mean = x
@@ -149,12 +147,7 @@ class RealNVP(nn.Module):
     @torch.jit.export
     def set_base_dist_var(self, x:torch.Tensor):
         self.base_dist_var = x
-
-
-    # def forward_output_only(self, x):
-    #     u, sum_log_abs_det_jacobians = self.forward(x)
-    #     return u
     
-    # def compute_jacobian(self, x):
-    #     res = autograd.functional.jacobian(self.forward_output_only, x)
-    #     return res
+    @torch.jit.export
+    def base_dist_log_prob(self, x:torch.Tensor):
+        return self.prior.log_prob(x)

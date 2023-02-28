@@ -46,8 +46,11 @@ def sample_from_base(model, n_samples=1):
         
 def sample_and_plot_reconstructions(model, args, N):
     out_dir = f"{args.output_dir}/sampling_and_reconstructions_N_{N}/"
+    particles_dir = f"{args.output_dir}/sampling_and_reconstructions_N_{N}/particles/" 
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
+    if not os.path.exists(particles_dir):
+        os.makedirs(particles_dir)
     z0_ten, z0 = sample_from_base(model, N)
     z0_ten = z0_ten.to(args.device)
     print(f'z0_ten shape is  {z0_ten.shape}')
@@ -88,6 +91,7 @@ def sample_and_plot_reconstructions(model, args, N):
         z0_sample = z0[i, :]
         z0_sample = z0_sample.reshape((-1, 3))
         ax.scatter3D(z0_sample[:, 0], z0_sample[: , 1], z0_sample[:, 2], color = "green")
+        np.savetxt(f'{particles_dir}/sampling_z0_{i}.particles', z0_sample)
 
         # plot projected z
         ax = fig.add_subplot(1, 2, 2, projection='3d')
@@ -95,6 +99,7 @@ def sample_and_plot_reconstructions(model, args, N):
         z_new_sample = z_new[i, :]
         z_new_sample = z_new_sample.reshape((-1, 3))
         ax.scatter3D(z_new_sample[:, 0], z_new_sample[: , 1], z_new_sample[:, 2], color = "blue")
+        np.savetxt(f'{particles_dir}/sampling_z_{i}.particles', z_new_sample)
         plt.savefig(f'{out_dir}/plt_{i}_sampling.png')
         
 def plot_correspondences(z, z0,z_new, M, fig_name):
@@ -123,24 +128,32 @@ def plot_projections(x, model, epoch, args):
     fig = plt.figure(figsize=plt.figaspect(0.5))
     fig.suptitle('Particle Systems')
     # Plot input z
-    ax = fig.add_subplot(1, 3, 1, projection='3d')
+    ax = fig.add_subplot(1, 4, 1, projection='3d')
     ax.set_title(r'Input $Z$ Space -->')
     x_ = x.detach().cpu().numpy()
     x_ = x_[0, :].reshape((-1, 3))
     ax.scatter3D(x_[:, 0], x_[: , 1], x_[:, 2], color = "red")
 
     # plot z0 
-    ax = fig.add_subplot(1, 3, 2, projection='3d')
+    ax = fig.add_subplot(1, 4, 2, projection='3d')
     ax.set_title(r"$Z_0$ Space -->")
     z0_ten, z0 = project(model, x[0, :],  'forward')
     M = int(z0.shape[0]//3)
     z0 = z0.reshape((M, 3))
     ax.scatter3D(z0[:, 0], z0[: , 1], z0[:, 2], color = "green")
 
+    # Add noise to z0
+    z0_ten_noisy = z0_ten + (0.5 * torch.randn(z0_ten.shape).to(args.device))
+    ax = fig.add_subplot(1, 4, 3, projection='3d')
+    ax.set_title(r"$Z_0$ with noise -->")
+    z0_noisy = z0_ten_noisy.detach().cpu().numpy()
+    z0_noisy = z0_noisy.reshape((M, 3))
+    ax.scatter3D(z0_noisy[:, 0], z0_noisy[: , 1], z0_noisy[:, 2], color = "green")
+
     # plot projected z
-    ax = fig.add_subplot(1, 3, 3, projection='3d')
+    ax = fig.add_subplot(1, 4, 4, projection='3d')
     ax.set_title(r"Projected $Z$ Space")
-    _, z_new = project(model, z0_ten, 'inverse') # z0 to z
+    _, z_new = project(model, z0_ten_noisy, 'inverse') # z0_noisy to z
     M = int(z_new.shape[0]//3)
     z_new = z_new.reshape((M, 3))
     ax.scatter3D(z_new[:, 0], z_new[: , 1], z_new[:, 2], color = "blue")
