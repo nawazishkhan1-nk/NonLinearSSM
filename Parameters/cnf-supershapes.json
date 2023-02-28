@@ -1,0 +1,43 @@
+{
+	"gpu_device": "cuda:1",
+
+    "working_dir": "/home/sci/nawazish.khan/non-linear-ssm-experiments/supershapes/",
+    "project_name": "supershapes_project",
+    "burn_in_dir": "burn-in-model/warped_particles",
+    "results_file": "results.txt",
+
+    "experiment_name": "NewExperimentCheck2",
+
+    "model": "realnvp",
+    "n_blocks": 5,
+    "hidden_size": 256,
+    "n_hidden": 10,
+    "activation_fn": "relu",
+    "input_order": "sequential",
+    "no_batch_norm": true,
+
+    "start_epoch": 0,
+    "n_epochs": 200,
+    "lr": 1e-4,
+
+    "modes_retained": 0.90,
+    "prior_type": "non_zero_mean_isotropic",
+
+    "log_interval": 5,
+    "seed": 11,
+    "train_test_split": 0.85,
+
+    "plot_projections": true,
+    "plot_correspondences": false,
+    "plot_loss_log": true,
+    "plot_sampling": true,
+    "plot_test_samples": true,
+    "plot_densities": true,
+
+    "num_particles_subset": null,
+    "scale_particles_input": false,
+
+    "batch_size":20,
+    "augment_data": null,
+    "aug_sigma": 0.1
+  }
